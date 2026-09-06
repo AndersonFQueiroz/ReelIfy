@@ -64,9 +64,15 @@ async def liberate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     _grant_access(update.effective_chat.id)
+    try:
+        bot_profile = await context.bot.get_me()
+        bot_name = bot_profile.first_name or bot_profile.username or "este bot"
+    except Exception:
+        bot_name = "este bot"
+
     await update.message.reply_text(
         "✅ *Acesso liberado permanentemente!*\n\n"
-        "Agora você já pode criar vídeos pelo Click Shop Oficial 🌻.\n\n"
+        f"Agora você já pode criar vídeos pelo {bot_name}.\n\n"
         "📌 *Comandos principais:*\n"
         "• `/novo_video` — cria um pedido com revisão e aprovação do roteiro.\n"
         "• `/auto` — cria e envia o pedido para a fila automaticamente.\n"
