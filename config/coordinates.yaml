@@ -1,0 +1,53 @@
+# ==============================================================================
+# CALIBRAÇÃO DE COORDENADAS E SELETORES DE TELA - YOUTUBE CREATE
+# ==============================================================================
+# IMPORTANTE: Nunca altere o código Python para mudar posições de clique.
+# Quando você estiver com o celular físico em mãos, ative:
+# "Opções do desenvolvedor" -> "Localização do ponteiro" no Android.
+# O Android exibirá na barra superior as coordenadas exatas (X, Y) de cada toque.
+# Substitua os valores abaixo pelas coordenadas reais observadas no seu aparelho.
+# ==============================================================================
+
+device:
+  default_resolution: "1080x2400"
+  package_name: "com.google.android.apps.youtube.creator"
+  temp_phone_dir: "/sdcard/Download/reelify_temp/"
+
+coordinates:
+  # 1. Tela Inicial: Botão "+" ou "Novo Projeto"
+  btn_new_project: [540, 2200]
+
+  # 2. Seletor de Mídia: Aba de "Fotos" ou "Imagens"
+  tab_images: [350, 400]
+
+  # 3. Seletor de Mídia: Miniatura da foto mais recente importada
+  first_image_thumbnail: [180, 550]
+
+  # 4. Botão "Importar" / "Avançar" após selecionar a foto
+  btn_import_media: [900, 2250]
+
+  # 5. Barra de ferramentas do editor: Botão de "Narração" ou recurso de IA / Texto
+  btn_add_voice_or_ai: [800, 1800]
+
+  # 6. Caixa de texto / Prompt do roteiro
+  input_text_script: [540, 1200]
+
+  # 7. Botão "Gerar / Aplicar" roteiro
+  btn_generate: [540, 2100]
+
+  # 8. Menu de exportação / Botão "Exportar" (canto superior direito)
+  btn_export_menu: [1000, 150]
+
+  # 9. Confirmação de qualidade e exportação final
+  btn_export_confirm: [540, 1900]
+
+ui_selectors:
+  # Textos identificáveis via uiautomator dump
+  btn_export_text: "Exportar"
+  btn_done_text: "Concluído"
+  btn_save_text: "Salvar"
+  progress_indicator_keywords:
+    - "Renderizando"
+    - "Gerando"
+    - "Exportando"
+    - "Aguarde"

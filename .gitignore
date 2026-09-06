@@ -1,0 +1,29 @@
+# Variáveis de ambiente e segredos
+.env
+*.env
+
+# Python cache e venv
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# Dados locais e mídias
+data/queue.json
+data/media/inputs/*
+!data/media/inputs/.gitkeep
+data/media/outputs/*
+!data/media/outputs/.gitkeep
+data/logs/*
+!data/logs/.gitkeep
+
+# IDEs e sistemas operacionais
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

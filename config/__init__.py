@@ -1,0 +1,1 @@
+"""ReelIfy — Configurações do sistema."""
