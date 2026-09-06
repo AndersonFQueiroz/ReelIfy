@@ -31,7 +31,7 @@ class Settings:
 
     # Google Gemini API
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
     # Fila e Armazenamento
     queue_file_path: Path = BASE_DIR / os.getenv("QUEUE_FILE_PATH", "data/queue.json")

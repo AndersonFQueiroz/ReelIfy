@@ -132,16 +132,30 @@ class GeminiService:
     def _generate_fallback_script(
         self, product_name: str, description: str, target_audience: str, variation_index: int = 0
     ) -> ScriptData:
-        hooks = ("Já imaginou resolver isso de um jeito muito mais simples?", "Pais sabem: cada minuto livre faz diferença na rotina.", "Quer mais praticidade sem abrir mão de bons momentos em família?", "Você ainda perde tempo com uma tarefa que poderia ser muito mais fácil?", "Uma pequena mudança pode deixar o dia a dia muito mais leve.")
-        hook = hooks[variation_index % len(hooks)]
         audience = target_audience.strip().rstrip(".!?") or "pessoas práticas"
         audience_lower = audience.lower()
-        if audience_lower in {"pais", "pais e mães", "pais e mães ocupados", "pais ocupados"}:
-            problem = "Na rotina dos pais, encontrar praticidade ajuda a sobrar tempo para o que realmente importa."
+        parent_audience = any(term in audience_lower for term in ("pai", "mãe", "mae", "pais", "mães", "maes"))
+        if parent_audience:
+            hooks = (
+                "Quem tem filhos sabe: cada minuto livre faz diferença na rotina.",
+                "Pais e mães, querem mais tempo para aproveitar com a família?",
+                "A rotina com filhos pode ser corrida, mas algumas tarefas podem ficar mais simples.",
+                "Já pensou em ganhar praticidade sem abrir mão dos momentos em família?",
+                "Quando o dia é corrido, uma solução prática muda tudo.",
+            )
+            problem = "Na rotina de pais e mães, encontrar praticidade ajuda a sobrar tempo para o que realmente importa."
         else:
+            hooks = (
+                "Já imaginou resolver isso de um jeito muito mais simples?",
+                "Você ainda perde tempo com uma tarefa que poderia ser muito mais fácil?",
+                "Quer mais praticidade sem complicação no dia a dia?",
+                "Uma pequena mudança pode deixar sua rotina muito mais leve.",
+                "Existe um jeito mais simples de resolver isso.",
+            )
             problem = f"Para {audience_lower}, encontrar algo prático e de qualidade pode fazer toda a diferença."
+        hook = hooks[variation_index % len(hooks)]
         solution = f"Com {product_name}, você tem {description} em poucos minutos e sem complicações."
-        proof = "Quem já experimentou não troca por nada e recomenda de olhos fechados."
+        proof = f"Uma escolha prática para quem busca mais facilidade no dia a dia com {product_name}."
         cta = "Aproveite a promoção exclusiva no link da bio antes que o estoque acabe!"
         full_text = f"{hook} {problem} {solution} {proof} {cta}"
 
