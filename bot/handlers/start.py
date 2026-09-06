@@ -32,6 +32,15 @@ def _save_persistent_authorized_ids(chat_ids: set[int]) -> None:
     temp_file.replace(AUTHORIZED_USERS_FILE)
 
 
+async def get_bot_display_name(context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Obtém o nome atual do bot diretamente do Telegram."""
+    try:
+        bot_profile = await context.bot.get_me()
+        return bot_profile.first_name or bot_profile.username or "este bot"
+    except Exception:
+        return "este bot"
+
+
 def _is_admin(chat_id: int) -> bool:
     return chat_id in settings.admin_chat_ids
 
@@ -64,11 +73,7 @@ async def liberate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     _grant_access(update.effective_chat.id)
-    try:
-        bot_profile = await context.bot.get_me()
-        bot_name = bot_profile.first_name or bot_profile.username or "este bot"
-    except Exception:
-        bot_name = "este bot"
+    bot_name = await get_bot_display_name(context)
 
     await update.message.reply_text(
         "✅ *Acesso liberado permanentemente!*\n\n"
@@ -141,8 +146,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     logger.info(f"Usuário autorizado acessou /start: {chat_id} ({user.username})")
+    bot_name = await get_bot_display_name(context)
     await update.message.reply_text(
-        f"👋 Olá, *{user.first_name}*! Seja bem-vinda ao ReelIfy — Gerador Automático de Vídeos!\n\n"
+        f"👋 Olá, *{user.first_name}*! Seja bem-vinda ao {bot_name} — Gerador Automático de Vídeos!\n\n"
         f"Com este robô, você pode transformar fotos e links de produtos em vídeos curtos persuasivos (20s) prontos para o YouTube Shorts, Reels e TikTok.\n\n"
         f"📌 *Comandos Disponíveis:*\n"
         f"• `/novo_video` - Iniciar o pedido de um novo vídeo\n"

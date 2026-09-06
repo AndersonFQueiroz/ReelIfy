@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config.settings import settings
-from bot.handlers.start import is_user_authorized
+from bot.handlers.start import is_user_authorized, get_bot_display_name
 from bot.services.queue_service import queue_service, JobStatus
 
 logger = logging.getLogger(__name__)
@@ -27,11 +27,12 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     jobs = queue_service.get_jobs_by_chat_id(chat_id)
+    bot_name = await get_bot_display_name(context)
 
     if not jobs:
         await update.message.reply_text(
             "📭 Você ainda não solicitou nenhum vídeo.\n\n"
-            "Digite `/novo_video` para criar o seu primeiro vídeo com o ReelIfy!",
+            f"Digite `/novo_video` para criar o seu primeiro vídeo com o {bot_name}!",
             parse_mode="Markdown"
         )
         return
