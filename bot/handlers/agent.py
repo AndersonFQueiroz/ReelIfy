@@ -48,6 +48,7 @@ async def start_agent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     if not is_user_authorized(chat_id):
         await update.message.reply_text(_denied_text(chat_id), parse_mode="Markdown")
         return ConversationHandler.END
+    context.user_data.pop("agent_preview_message_id", None)
     agent_service.start_session(chat_id)
     await update.message.reply_text(
         "🎬 Vamos criar seu vídeo. Pode me contar naturalmente qual produto quer divulgar? "
@@ -60,6 +61,7 @@ async def start_agent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 async def cancel_agent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     chat_id = update.effective_chat.id
     if is_user_authorized(chat_id):
+        context.user_data.pop("agent_preview_message_id", None)
         agent_service.cancel_session(chat_id)
         await update.message.reply_text("🚫 Conversa cancelada. Quando quiser, é só me chamar novamente.")
     else:
@@ -73,6 +75,29 @@ async def agent_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text(_denied_text(chat_id), parse_mode="Markdown")
         return
     reply = await agent_service.handle_message(chat_id, update.message.text)
+
+    # Depois de "Corrigir escrevendo", a prévia original continua sendo a
+    # mensagem visível enquanto o usuário digita. Quando a nova versão fica
+    # pronta, atualizamos aquela mensagem em vez de publicar o roteiro por
+    # cima do aviso de correção ou deixar duas prévias concorrentes.
+    preview_message_id = context.user_data.get("agent_preview_message_id")
+    if preview_message_id and reply.awaiting_approval:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=preview_message_id,
+                text=reply.text,
+                reply_markup=_review_keyboard(),
+            )
+            context.user_data.pop("agent_preview_message_id", None)
+            return
+        except Exception:
+            logger.exception("Não foi possível atualizar a prévia original; enviando a nova versão.")
+
+    # Aprovação, cancelamento ou uma resposta sem nova prévia não deve deixar
+    # um ID antigo apontando para uma mensagem já finalizada.
+    if not reply.awaiting_approval:
+        context.user_data.pop("agent_preview_message_id", None)
     await _send_agent_reply(update.message, reply)
 
 
@@ -109,6 +134,7 @@ async def agent_review_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     action = query.data.split(":", 1)[-1]
     if action == "approve":
+        context.user_data.pop("agent_preview_message_id", None)
         reply = await agent_service.approve(chat_id)
         # Mantém a prévia integral no histórico para cópia; apenas remove os
         # botões e envia a confirmação em uma nova mensagem.
@@ -121,10 +147,17 @@ async def agent_review_callback(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=_review_keyboard() if reply.awaiting_approval else None,
         )
     elif action == "edit":
-        await query.edit_message_text(
+        # Preserve a prévia completa para o usuário reler enquanto escreve a
+        # correção. Os botões são removidos apenas para evitar uma segunda
+        # ação sobre a mesma versão; a mensagem só será editada quando a nova
+        # prévia estiver pronta.
+        await query.edit_message_reply_markup(reply_markup=None)
+        context.user_data["agent_preview_message_id"] = query.message.message_id
+        await query.message.reply_text(
             "✏️ Escreva agora, em uma mensagem, o que você quer mudar no roteiro. "
             "Exemplo: “troque o público para pais e deixe o gancho mais natural”."
         )
     elif action == "cancel":
+        context.user_data.pop("agent_preview_message_id", None)
         agent_service.cancel_session(chat_id)
         await query.edit_message_text("🚫 Pedido cancelado. Quando quiser, use /novo_video novamente.")

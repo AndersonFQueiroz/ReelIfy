@@ -101,11 +101,11 @@ O worker marca `PROCESSING`, valida ADB quando `MOCK_DEVICE=False`, transfere im
 
 ## 8. Provedores
 
-`bot/services/video_providers.py` registra `adb_youtube_create` e `local_ffmpeg` quando disponíveis. O caminho de produção implementado no worker é ADB/YouTube Create; `local_ffmpeg` ainda não é uma rota completa de renderização. APIs HTTP externas exigem um adaptador específico, autenticação, contrato de status e integração no worker.
+`bot/services/video_providers.py` registra `adb_youtube_create`, `local_ffmpeg` e o adaptador opcional `pollinations_video` quando há `POLLINATIONS_API_KEY` e `huggingface_video` quando há `HF_TOKEN`. O worker chama as APIs de forma síncrona, salva o MP4 em `data/media/outputs` e entrega o arquivo pelo Telegram. A API não é gratuita ilimitada: a chave e a quota/saldo são responsabilidade do operador.
 
 ## 9. Configuração e execução
 
-Variáveis principais: `TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_IMAGE_MODEL`, `ALLOWED_CHAT_IDS`, `ADMIN_CHAT_IDS`, `MAGIC_WORD`, `AGENT_DB_PATH`, `QUEUE_FILE_PATH`, `MOCK_DEVICE`, `ADB_DEVICE_SERIAL` e `VIDEO_PROVIDER_POLICY`.
+Variáveis principais: `TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_IMAGE_MODEL`, `ALLOWED_CHAT_IDS`, `ADMIN_CHAT_IDS`, `MAGIC_WORD`, `AGENT_DB_PATH`, `QUEUE_FILE_PATH`, `MOCK_DEVICE`, `ADB_DEVICE_SERIAL`, `VIDEO_PROVIDER_POLICY`, `POLLINATIONS_API_KEY`, `POLLINATIONS_VIDEO_MODEL` e `POLLINATIONS_VIDEO_DURATION`, `HF_TOKEN`, `HF_VIDEO_MODEL` e `HF_VIDEO_PROVIDER`.
 
 ```bash
 python3 -m bot.main

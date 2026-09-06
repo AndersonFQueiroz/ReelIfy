@@ -54,7 +54,7 @@ Não guardar tokens, URLs privadas, IDs de chat ou dados pessoais no RAG. Não p
 
 ## Provedores
 
-O caminho implementado de produção é ADB + YouTube Create; `MOCK_DEVICE=True` permite testes sem aparelho. A camada `VideoProvider` registra disponibilidade e foi mantida como ponto de extensão. Um provedor HTTP externo ainda precisa de um serviço específico, contrato de API, autenticação e integração real no worker; não tratar Veo ou qualquer serviço sem quota confirmada como gratuito.
+O caminho implementado de produção é ADB + YouTube Create; `MOCK_DEVICE=True` permite testes sem aparelho. A camada `VideoProvider` também possui o adaptadores opcionais Pollinations (`pollinations_video`) e Hugging Face (`huggingface_video`), que exigem suas respectivas chaves, geram MP4 vertical pela API e usam o mesmo fluxo de entrega. A disponibilidade e o custo dependem da quota/saldo da conta; não tratar o provedor como gratuito ilimitado.
 
 ## Regras para alterações
 

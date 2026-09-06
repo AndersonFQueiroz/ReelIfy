@@ -15,6 +15,7 @@ from config.settings import settings
 from telegram.helpers import escape_markdown
 from bot.services.queue_service import queue_service, Job, JobStatus
 from automation.adb.device import get_device
+from bot.services.video_providers import HuggingFaceVideoProvider, PollinationsVideoProvider
 
 logging.basicConfig(
     format="%(asctime)s - [%(levelname)s] - [WORKER] - %(message)s",
@@ -103,8 +104,48 @@ class VideoAutomationWorker:
         logger.info(f"Executando toque: {point_name} em [{x}, {y}]")
         return self.device.tap(x, y)
 
+    def _process_pollinations_job(self, job: Job) -> bool:
+        """Renderiza o job pela API HTTP, sem depender do celular Android."""
+        local_video_output = settings.media_outputs_dir / f"video_{job.job_id[:8]}.mp4"
+        try:
+            provider = PollinationsVideoProvider()
+            if not provider.is_available():
+                raise RuntimeError("POLLINATIONS_API_KEY não configurada para o provedor selecionado.")
+            logger.info("Gerando vídeo do Job %s via Pollinations (%s)...", job.job_id, settings.pollinations_video_model)
+            provider.render(job, local_video_output)
+            self.queue_service.mark_completed(job.job_id, str(local_video_output))
+            logger.info("Job %s concluído pela API Pollinations.", job.job_id)
+            return True
+        except Exception as error:
+            error_msg = str(error)
+            logger.error("Erro na API Pollinations para o Job %s: %s", job.job_id, error_msg, exc_info=True)
+            self.queue_service.mark_failed(job.job_id, error_msg)
+            return False
+
+    def _process_huggingface_job(self, job: Job) -> bool:
+        """Renderiza o job por image-to-video no Hugging Face."""
+        local_video_output = settings.media_outputs_dir / f"video_{job.job_id[:8]}.mp4"
+        try:
+            provider = HuggingFaceVideoProvider()
+            if not provider.is_available():
+                raise RuntimeError("HF_TOKEN não configurado para o provedor selecionado.")
+            logger.info("Gerando vídeo do Job %s via Hugging Face (%s)...", job.job_id, settings.huggingface_video_model)
+            provider.render(job, local_video_output)
+            self.queue_service.mark_completed(job.job_id, str(local_video_output))
+            logger.info("Job %s concluído pelo Hugging Face.", job.job_id)
+            return True
+        except Exception as error:
+            error_msg = str(error)
+            logger.error("Erro no Hugging Face para o Job %s: %s", job.job_id, error_msg, exc_info=True)
+            self.queue_service.mark_failed(job.job_id, error_msg)
+            return False
+
     def process_job(self, job: Job) -> bool:
         """Executa o ciclo completo de automação para um pedido."""
+        if job.provider_id == "huggingface_video":
+            return self._process_huggingface_job(job)
+        if job.provider_id == "pollinations_video":
+            return self._process_pollinations_job(job)
         logger.info(f"==> Iniciando processamento do Job {job.job_id} ({_md(job.product.name)})")
 
         photos_to_send = job.product.photos_local_paths or ([job.product.photo_local_path] if job.product.photo_local_path else [])
@@ -237,7 +278,7 @@ class VideoAutomationWorker:
                 else "🔗 *Link de Afiliado:* não informado. Você pode adicionar um link depois.\n\n"
             )
             caption = (
-                f"🎉 *Seu vídeo de 20s está pronto!*\n\n"
+                f"🎉 *Seu vídeo está pronto!*\n\n"
                 f"📦 *Produto:* {_md(job.product.name)}\n"
                 f"🎨 *Estilo:* {_md(job.style_id)}\n"
                 f"⚙️ *Motor:* {_md(job.provider_id)}\n"
@@ -267,7 +308,7 @@ class VideoAutomationWorker:
                 )
             else:
                 alert = (
-                    f"⚠️ *Atenção:* Ocorreu um problema ao produzir o vídeo do produto *{_md(job.product.name)}* no celular.\n\n"
+                    f"⚠️ *Atenção:* Ocorreu um problema ao produzir o vídeo do produto *{_md(job.product.name)}* pelo motor selecionado.\n\n"
                     f"🔍 *Detalhe técnico:* _{_md(job.error_details)}_\n\n"
                     f"O suporte foi alertado. Você pode tentar novamente com `/novo_video`."
                 )

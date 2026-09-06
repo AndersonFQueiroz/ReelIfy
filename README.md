@@ -153,8 +153,15 @@ Edite o arquivo `.env` com suas chaves:
 | `GEMINI_IMAGE_MODEL` | Google AI Studio, opcional | Modelo de imagem; se ausente ou indisponível, usa placeholder |
 | `AGENT_DB_PATH` | Local | Banco SQLite do agente e RAG |
 | `VIDEO_PROVIDER_POLICY` | Local | `free_only` impede uso automático de provedores pagos |
+| `POLLINATIONS_API_KEY` | Pollinations | Chave opcional para o provedor de vídeo por API |
+| `POLLINATIONS_VIDEO_MODEL` | Pollinations | Modelo opcional; padrão `wan-fast` |
+| `POLLINATIONS_VIDEO_DURATION` | Pollinations | Duração do clipe; padrão `15` segundos |
+| `HF_TOKEN` | Hugging Face | Token com permissão para Inference Providers |
+| `HF_VIDEO_MODEL` | Hugging Face | Modelo; padrão `Wan-AI/Wan2.2-I2V-A14B` |
+| `HF_VIDEO_PROVIDER` | Hugging Face | Roteamento; padrão `auto` |
 
 > **Dica:** Deixe `MOCK_DEVICE=True` para testar sem celular físico conectado.
+> A API Pollinations só aparece como opção quando `POLLINATIONS_API_KEY` está configurada; a quota/saldo depende da conta.
 
 ---
 

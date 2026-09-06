@@ -46,6 +46,8 @@ STYLE_TEMPLATES = {
 PROVIDER_LABELS = {
     "adb_youtube_create": "YouTube Create no celular",
     "local_ffmpeg": "renderização local",
+    "pollinations_video": "Pollinations AI pela API",
+    "huggingface_video": "Hugging Face (Wan 2.2)",
 }
 
 
@@ -274,9 +276,31 @@ class AgentService:
             brief["link_destination"] = "youtube_comment"
         elif "só o link" in lowered or "so o link" in lowered or "copiar" in lowered:
             brief["link_destination"] = "manual_copy"
-        if "adb" in lowered or "celular" in lowered or "youtube create" in lowered:
+        provider_text = re.sub(r"[^\wÀ-ÿ]+", " ", lowered).strip()
+        huggingface_terms = (
+            "hugging face", "huggingface", "wan 2", "wan2", "ltx", "hf video",
+            "motor hugging", "modelo aberto",
+        )
+        pollinations_terms = (
+            "pollinations", "api", "nuvem", "online", "motor remoto",
+            "motor gratuito", "motor gratis", "de graça", "de graca",
+            "sem celular", "sem telefone", "sem aparelho", "gerar pela api",
+            "sem youtube", "sem aplicativo", "sem app", "alternativa ao youtube",
+            "segunda opção", "segunda opcao", "opção 2", "opcao 2",
+        )
+        youtube_terms = (
+            "youtube", "youtube create", "create", "celular", "telefone",
+            "android", "adb", "primeira opção", "primeira opcao", "opção 1", "opcao 1",
+        )
+        if any(term in provider_text for term in huggingface_terms):
+            brief["provider_id"] = "huggingface_video"
+        # Frases como “não quero celular, prefiro a API” devem priorizar a
+        # escolha explícita da API, mesmo contendo a palavra “celular”.
+        elif any(term in provider_text for term in pollinations_terms):
+            brief["provider_id"] = "pollinations_video"
+        elif any(term in provider_text for term in youtube_terms):
             brief["provider_id"] = "adb_youtube_create"
-        elif "local" in lowered:
+        elif any(term in provider_text for term in ("local", "ffmpeg", "computador")):
             brief["provider_id"] = "local_ffmpeg"
         if self._is_no_photo(clean):
             brief["media_source"] = "placeholder"
@@ -310,7 +334,7 @@ class AgentService:
 
         # Coleta livre de fallback quando o modelo não estiver disponível.
         if not brief.get("product_name"):
-            if clean and not media_notice and not self._is_yes(clean) and not self._is_regenerate(clean):
+            if clean and not media_notice and not brief.get("media_paths") and not self._is_yes(clean) and not self._is_regenerate(clean):
                 brief["product_name"] = clean[:160]
         elif not brief.get("benefits"):
             control_message = (
@@ -358,7 +382,10 @@ class AgentService:
     def _fallback_reply(self, brief: dict[str, Any], text: str) -> str:
         question = self._missing_question(brief)
         if question:
+            if not brief.get("product_name") and brief.get("media_paths"):
+                return "Recebi a foto, mas não consegui identificar com segurança o nome do produto. Qual é o nome dele?"
             if brief.get("product_name") and not brief.get("benefits"):
+
                 return f"Boa, já entendi que vamos falar de {brief['product_name']}. O que ele resolve ou faz de melhor?"
             if brief.get("product_name") and brief.get("media_source") in {None, "pending_choice"}:
                 return "Já peguei o produto e as informações principais. Se tiver uma foto real, pode mandar; se não, sigo com um visual provisório."
@@ -378,8 +405,10 @@ class AgentService:
         ]}]
         rag_text = "\n- ".join(rag)
         style_text = json.dumps(STYLE_TEMPLATES, ensure_ascii=False)
+        provider_options = "; ".join(f"{provider_id}: {label}" for provider_id, label in provider_names().items())
         system = (
             "Você é o atendente natural deste bot. Nunca invente ou repita um nome de marca; "
+            f"Provedores disponíveis: {provider_options}. Nunca mostre os IDs técnicos ao usuário; use somente os nomes amigáveis. "
             "use a identidade que aparecer na mensagem do Telegram. Converse em português brasileiro. "
             "Converse como uma pessoa atenta: reconheça o que já entendeu, responda ao contexto e varie "
             "a forma de falar. Não repita formulário, não liste campos e não faça várias perguntas de uma vez. "
@@ -388,6 +417,7 @@ class AgentService:
             "marca, rótulos e textos legíveis. Se o nome estiver visível, use update_brief e não pergunte o nome "
             "novamente. Nunca invente dados. Use update_brief ao extrair informações. A aplicação mostrará a "
             "prévia e pedirá aprovação; nunca considere uma confirmação implícita como aprovação.\n\n"
+            "Interprete escolhas por intenção, não por palavras exatas. Se o usuário disser API, online, nuvem, gratuito, sem celular ou alternativa ao YouTube, selecione pollinations_video. Se disser Hugging Face, HF, Wan, Wan 2, LTX ou modelo aberto, selecione huggingface_video. Se disser YouTube Create, celular, aplicativo, Android ou ADB, selecione adb_youtube_create. Se disser local, computador ou FFmpeg, selecione local_ffmpeg. Só selecione um motor listado como disponível\n\n"
             f"RAG:\n- {rag_text}\n\nEstilos disponíveis:\n{style_text}\n\nBriefing atual:\n{json.dumps(brief, ensure_ascii=False)}\n"
         )
         transcript = "\n".join(f"{item['role']}: {item['text']}" for item in history[-12:])
@@ -580,10 +610,10 @@ class AgentService:
         rag = self.retrieve(text + " " + json.dumps(brief, ensure_ascii=False))
         try:
             model_text, calls = await asyncio.wait_for(
-                self._gemini_turn(brief, history, text, rag), timeout=12
+                self._gemini_turn(brief, history, text, rag), timeout=settings.gemini_timeout_seconds
             )
         except asyncio.TimeoutError:
-            logger.warning("Gemini excedeu o limite de 12s na conversa; usando fallback local.")
+            logger.warning(f"Gemini excedeu o limite de {settings.gemini_timeout_seconds}s na conversa; usando fallback local.")
             model_text, calls = "", []
         for call in calls:
             name, args = call["name"], call["args"]
@@ -622,6 +652,10 @@ class AgentService:
         self._apply_defaults(brief)
         if self._missing_question(brief) is None:
             return await self._generate_preview(chat_id, brief, history)
+        if model_text:
+            for provider_id, label in PROVIDER_LABELS.items():
+                model_text = model_text.replace(f"**{provider_id}**", label).replace(provider_id, label)
+            model_text = model_text.replace("**", "")
         reply = model_text or self._fallback_reply(brief, text)
         history.append({"role": "assistant", "text": reply})
         self._save_session(chat_id, brief, history)
