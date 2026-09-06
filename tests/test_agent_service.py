@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from bot.services import agent_service as agent_module
 from bot.services.agent_service import AgentService
@@ -81,3 +82,27 @@ def test_preview_requires_approval_and_learns_correction(tmp_path, monkeypatch):
     service, reply = asyncio.run(run())
     assert reply.job is not None
     assert service.retrieve("roteiros naturais")
+
+
+def test_conversation_sends_real_image_to_gemini(tmp_path, monkeypatch):
+    image_path = tmp_path / "produto.jpg"
+    image_path.write_bytes(b"fake-jpeg")
+    captured = {}
+
+    class Models:
+        async def generate_content(self, **kwargs):
+            captured["contents"] = kwargs["contents"]
+            return SimpleNamespace(candidates=[])
+
+    fake_client = SimpleNamespace(aio=SimpleNamespace(models=Models()))
+    monkeypatch.setattr(gemini_service, "_client", fake_client)
+    service = AgentService(tmp_path / "agent.db")
+
+    asyncio.run(service._gemini_turn(
+        {"product_name": "produto", "media_paths": [str(image_path)]},
+        [],
+        "Enviei a foto.",
+        [],
+    ))
+    assert isinstance(captured["contents"], list)
+    assert len(captured["contents"]) == 2

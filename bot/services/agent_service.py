@@ -300,6 +300,7 @@ class AgentService:
         )
         audience_match = re.search(r"\bpara\s+([^,.!?]+)", clean, re.IGNORECASE)
         benefits_match = re.search(r"(?:benefícios?|beneficios?|diferenciais?)\s*:\s*(.+)$", clean, re.IGNORECASE)
+        media_notice = "enviei uma foto real" in lowered or "leia os textos visíveis" in lowered
         if product_match and not brief.get("product_name"):
             brief["product_name"] = product_match.group(1).strip()
         if audience_match and not brief.get("target_audience"):
@@ -309,13 +310,14 @@ class AgentService:
 
         # Coleta livre de fallback quando o modelo não estiver disponível.
         if not brief.get("product_name"):
-            if clean and not self._is_yes(clean) and not self._is_regenerate(clean):
+            if clean and not media_notice and not self._is_yes(clean) and not self._is_regenerate(clean):
                 brief["product_name"] = clean[:160]
         elif not brief.get("benefits"):
             control_message = (
                 self._is_yes(clean)
                 or self._is_regenerate(clean)
                 or self._is_no_photo(clean)
+                or media_notice
                 or style
                 or clean.startswith(("http://", "https://"))
                 or any(token in lowered for token in ("sem link", "não tenho link", "nao tenho link", "placeholder", "imagem ia"))
@@ -354,10 +356,14 @@ class AgentService:
         return None
 
     def _fallback_reply(self, brief: dict[str, Any], text: str) -> str:
-        if brief.get("confirmed"):
-            return "Vou preparar seu pedido agora."
         question = self._missing_question(brief)
-        return question or "Pode me dizer o que você gostaria de ajustar no roteiro?"
+        if question:
+            if brief.get("product_name") and not brief.get("benefits"):
+                return f"Boa, já entendi que vamos falar de {brief['product_name']}. O que ele resolve ou faz de melhor?"
+            if brief.get("product_name") and brief.get("media_source") in {None, "pending_choice"}:
+                return "Já peguei o produto e as informações principais. Se tiver uma foto real, pode mandar; se não, sigo com um visual provisório."
+            return question
+        return "Perfeito, já entendi a ideia. Vou montar uma primeira versão para você revisar aqui no chat."
 
     async def _gemini_turn(self, brief: dict[str, Any], history: list[dict[str, str]], text: str, rag: list[str]) -> tuple[str, list[dict[str, Any]]]:
         client = getattr(gemini_service, "_client", None)
@@ -375,17 +381,35 @@ class AgentService:
         system = (
             "Você é o atendente natural deste bot. Nunca invente ou repita um nome de marca; "
             "use a identidade que aparecer na mensagem do Telegram. Converse em português brasileiro. "
-            "Não repita formulário nem faça várias perguntas de uma vez. Use o RAG abaixo. "
-            "Nunca invente dados. Use update_brief ao extrair informações. Só chame finalize_video_request "
-            "quando o usuário confirmar e o briefing estiver completo.\n\n"
+            "Converse como uma pessoa atenta: reconheça o que já entendeu, responda ao contexto e varie "
+            "a forma de falar. Não repita formulário, não liste campos e não faça várias perguntas de uma vez. "
+            "Pergunte somente o indispensável; público, estilo, destino do link e provedor têm padrões seguros "
+            "e não devem ser perguntados se já puderem ser inferidos. Analise toda imagem anexada: leia nome, "
+            "marca, rótulos e textos legíveis. Se o nome estiver visível, use update_brief e não pergunte o nome "
+            "novamente. Nunca invente dados. Use update_brief ao extrair informações. A aplicação mostrará a "
+            "prévia e pedirá aprovação; nunca considere uma confirmação implícita como aprovação.\n\n"
             f"RAG:\n- {rag_text}\n\nEstilos disponíveis:\n{style_text}\n\nBriefing atual:\n{json.dumps(brief, ensure_ascii=False)}\n"
         )
         transcript = "\n".join(f"{item['role']}: {item['text']}" for item in history[-12:])
         prompt = f"{system}\nHistórico:\n{transcript}\nusuário: {text}"
         try:
+            contents: Any = prompt
+            media_parts = []
+            for media_path in brief.get("media_paths", []):
+                path = Path(media_path)
+                if not path.exists() or path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp"}:
+                    continue
+                if path.stat().st_size > 10 * 1024 * 1024:
+                    logger.warning("Imagem ignorada por exceder 10 MB: %s", path)
+                    continue
+                mime_type = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}[path.suffix.lower()]
+                from google.genai import types
+                media_parts.append(types.Part.from_bytes(data=path.read_bytes(), mime_type=mime_type))
+            if media_parts:
+                contents = [prompt, *media_parts]
             response = await client.aio.models.generate_content(
                 model=gemini_service.model_name,
-                contents=prompt,
+                contents=contents,
                 config={"system_instruction": system, "tools": tools, "temperature": 0.7},
             )
             calls = []

@@ -89,7 +89,9 @@ async def agent_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         telegram_file = await context.bot.get_file(file_id)
         local_path = settings.media_inputs_dir / f"agent_{uuid.uuid4().hex[:10]}.jpg"
         await telegram_file.download_to_drive(custom_path=local_path)
-        reply = await agent_service.handle_message(chat_id, "Enviei uma foto real do produto.", str(local_path))
+        caption = (update.message.caption or "").strip()
+        photo_context = caption or "Enviei uma foto real do produto. Leia os textos visíveis e use-os para atualizar o briefing."
+        reply = await agent_service.handle_message(chat_id, photo_context, str(local_path))
         await _send_agent_reply(update.message, reply)
     except Exception:
         logger.exception("Falha ao receber mídia na conversa do agente.")
