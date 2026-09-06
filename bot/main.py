@@ -7,7 +7,7 @@ import sys
 from telegram.ext import ApplicationBuilder, CommandHandler
 
 from config.settings import settings
-from bot.handlers.start import start_command, help_command
+from bot.handlers.start import start_command, help_command, liberate_command, authorize_command, revoke_command
 from bot.handlers.status import status_command
 from bot.handlers.order import order_conversation_handler
 
@@ -35,6 +35,9 @@ def create_bot_app():
     # Registro de Handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("ajuda", help_command))
+    app.add_handler(CommandHandler("liberar", liberate_command))
+    app.add_handler(CommandHandler("autorizar", authorize_command))
+    app.add_handler(CommandHandler("revogar", revoke_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("pedidos", status_command))
     app.add_handler(order_conversation_handler)

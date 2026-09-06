@@ -29,6 +29,15 @@ class Settings:
         ]
     )
 
+    admin_chat_ids: List[int] = field(
+        default_factory=lambda: [
+            int(cid.strip())
+            for cid in os.getenv("ADMIN_CHAT_IDS", "").split(",")
+            if cid.strip().isdigit()
+        ]
+    )
+    magic_word: str = os.getenv("MAGIC_WORD", "")
+
     # Google Gemini API
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
