@@ -189,8 +189,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "3. A inteligência artificial (Google Gemini) cria um roteiro magnético de 20s dividido em Gancho, Problema, Solução, Prova Social e CTA.\n"
         "4. O pedido entra na fila de produção no celular.\n"
         "5. O celular automatizado gera o vídeo no *YouTube Create* e o robô te entrega o arquivo final em vídeo MP4 aqui no chat!\n\n"
-        "\n🔐 Para liberar um novo usuário: `/liberar SUA_SENHA`.\n"
-        "Administradores: /autorizar ID e /revogar ID.\n\n"
         "Dúvidas ou travamentos? Use `/status` para acompanhar.",
         parse_mode="Markdown"
     )
