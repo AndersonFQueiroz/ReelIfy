@@ -64,6 +64,7 @@ async def _generate_and_save_script(update, context):
     target_audience = context.user_data["target_audience"]
     affiliate_link = context.user_data.get("affiliate_link", "")
     photos_count = len(context.user_data.get("photos_local_paths", [])) or 1
+    variation_index = context.user_data.get("script_variation", 0)
 
     script_data = await gemini_service.generate_script(
         product_name=product_name,
@@ -71,6 +72,7 @@ async def _generate_and_save_script(update, context):
         target_audience=target_audience,
         affiliate_link=affiliate_link,
         photos_count=photos_count,
+        variation_index=variation_index,
     )
     context.user_data["script_data"] = script_data
     return script_data
@@ -490,6 +492,7 @@ async def callback_regen_script(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         await query.edit_message_text("⏳ *Gerando um novo roteiro com a IA...*", parse_mode="Markdown")
 
+        context.user_data["script_variation"] = context.user_data.get("script_variation", 0) + 1
         script_data = await _generate_and_save_script(update, context)
         preview = _format_script_preview(script_data)
         keyboard = InlineKeyboardMarkup([

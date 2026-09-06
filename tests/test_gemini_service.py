@@ -26,3 +26,14 @@ def test_gemini_service_fallback():
     assert len(script.cta) > 0
     assert len(script.full_text) > 0
     assert "Garrafa Térmica Inteligente" in script.solution
+
+
+def test_fallback_uses_natural_audience_and_varies_regeneration():
+    service = GeminiService(api_key=None)
+
+    first = asyncio.run(service.generate_script("Churrasqueira", "prepara carnes com praticidade", "pais", ""))
+    regenerated = asyncio.run(service.generate_script("Churrasqueira", "prepara carnes com praticidade", "pais", "", variation_index=1))
+
+    assert "faz parte de pais" not in first.full_text.lower()
+    assert "pais" in first.problem.lower()
+    assert first.full_text != regenerated.full_text

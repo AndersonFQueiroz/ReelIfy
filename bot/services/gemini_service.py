@@ -25,6 +25,8 @@ REGRAS RÍGIDAS:
    - Solução (8-14s): O produto em ação e seu benefício principal.
    - Prova Social / Diferencial (14-17s): Por que confiar (avaliações, economia, praticidade).
    - CTA (17-20s): Chamada direta para o link da bio/descrição.
+4. USE O PÚBLICO-ALVO COM GRAMÁTICA NATURAL: o público informado não deve ser encaixado literalmente depois de "você faz parte de". Para "pais", use "pais sabem...", "para pais..." ou "se você é pai ou mãe...".
+5. Em regenerações, mude de verdade o gancho, a dor e a construção do texto. Não repita o roteiro anterior.
 
 RETORNE EXCLUSIVAMENTE UM OBJETO JSON VÁLIDO com as seguintes chaves:
 {
@@ -66,6 +68,7 @@ class GeminiService:
         target_audience: str,
         affiliate_link: str,
         photos_count: int = 1,
+        variation_index: int = 0,
     ) -> ScriptData:
         """
         Gera um roteiro estruturado de 20s a partir dos dados do produto.
@@ -73,11 +76,16 @@ class GeminiService:
         """
         affiliate_info = affiliate_link.strip() if affiliate_link else "Link na bio ou primeiro comentário fixado"
         angles_note = f"- Mídia Visual: O vídeo contará com {photos_count} fotos alternando ângulos e detalhes na linha do tempo.\n" if photos_count > 1 else ""
+        angles = ("praticidade no dia a dia", "tempo de qualidade com a família", "conforto e facilidade de uso", "economia e custo-benefício", "um problema cotidiano inesperado")
+        angle = angles[variation_index % len(angles)]
+
         user_prompt = (
             f"Crie um roteiro persuasivo de 20 segundos para o produto abaixo:\n"
             f"- Nome do Produto: {product_name}\n"
             f"- Principais Benefícios / Descrição: {description}\n"
             f"- Público-Alvo: {target_audience}\n"
+            f"- Ângulo obrigatório desta versão: {angle}\n"
+            f"- Número da versão: {variation_index + 1}. Esta versão precisa ser diferente das anteriores, se houver.\n"
             f"{angles_note}"
             f"- Link de Afiliado (para o CTA): {affiliate_info}\n"
         )
@@ -119,13 +127,19 @@ class GeminiService:
                 logger.error(f"Falha na requisição ao Gemini: {e}. Usando fallback local.")
 
         # Fallback local seguro para desenvolvimento offline ou falta de chave
-        return self._generate_fallback_script(product_name, description, target_audience)
+        return self._generate_fallback_script(product_name, description, target_audience, variation_index)
 
     def _generate_fallback_script(
-        self, product_name: str, description: str, target_audience: str
+        self, product_name: str, description: str, target_audience: str, variation_index: int = 0
     ) -> ScriptData:
-        hook = "Cansado de perder tempo procurando uma solução que realmente funcione?"
-        problem = f"Se você faz parte de {target_audience}, sabe como é difícil encontrar algo prático e de qualidade."
+        hooks = ("Já imaginou resolver isso de um jeito muito mais simples?", "Pais sabem: cada minuto livre faz diferença na rotina.", "Quer mais praticidade sem abrir mão de bons momentos em família?", "Você ainda perde tempo com uma tarefa que poderia ser muito mais fácil?", "Uma pequena mudança pode deixar o dia a dia muito mais leve.")
+        hook = hooks[variation_index % len(hooks)]
+        audience = target_audience.strip().rstrip(".!?") or "pessoas práticas"
+        audience_lower = audience.lower()
+        if audience_lower in {"pais", "pais e mães", "pais e mães ocupados", "pais ocupados"}:
+            problem = "Na rotina dos pais, encontrar praticidade ajuda a sobrar tempo para o que realmente importa."
+        else:
+            problem = f"Para {audience_lower}, encontrar algo prático e de qualidade pode fazer toda a diferença."
         solution = f"Com {product_name}, você tem {description} em poucos minutos e sem complicações."
         proof = "Quem já experimentou não troca por nada e recomenda de olhos fechados."
         cta = "Aproveite a promoção exclusiva no link da bio antes que o estoque acabe!"
