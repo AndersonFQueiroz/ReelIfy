@@ -1,5 +1,4 @@
 # Dependências do Projeto: ReelIfy
-# Todas as bibliotecas listadas são 100% open-source e gratuitas
 
 python-telegram-bot[rate-limiter]>=20.8
 google-genai>=0.1.1

@@ -6,19 +6,20 @@
 
 <p align="center">
   <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
+  <a href="https://github.com/AndersonFQueiroz/ReelIfy/actions/workflows/ci.yml"><img src="https://github.com/AndersonFQueiroz/ReelIfy/actions/workflows/ci.yml/badge.svg" alt="CI Tests"></a>
   <a href="https://core.telegram.org/bots"><img src="https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white" alt="Telegram Bot"></a>
-  <a href="https://aistudio.google.com"><img src="https://img.shields.io/badge/Google%20Gemini-AI-4285F4?logo=google&logoColor=white" alt="Google Gemini"></a>
+  <a href="https://aistudio.google.com"><img src="https://img.shields.io/badge/AI%20Engine-Google%20Gemini-4285F4?logo=google&logoColor=white" alt="Google Gemini"></a>
+  <a href="#-arquitetura"><img src="https://img.shields.io/badge/Pipeline-Autonomous%2024%2F7-blueviolet?logo=speedtest&logoColor=white" alt="Pipeline"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
-  <a href="#-custo-total-r-000"><img src="https://img.shields.io/badge/Custo-R%24%200%2C00-brightgreen" alt="Custo: R$ 0,00"></a>
 </p>
 
 </div>
 
 ---
 
-**ReelIfy** é um sistema open-source que automatiza a produção de vídeos curtos (~20 segundos) para afiliados. Envie uma foto do produto pelo **Telegram**, e a IA do **Google Gemini** cria um roteiro magnético de alta conversão. O vídeo é então gerado automaticamente no **YouTube Create**, rodando em um celular Android dedicado controlado via **ADB** — tudo sem intervenção manual.
+**ReelIfy** é uma solução de alta performance para automação ponta a ponta de vídeos curtos (~20 segundos) para criadores e afiliados. Envie a foto e dados do produto pelo **Telegram**, e a inteligência artificial gera um roteiro magnético de alta conversão. O vídeo é produzido, editado e renderizado de forma 100% autônoma através de orquestração via **ADB** no **YouTube Create** — pronto para publicação em escala no Reels, TikTok e Shorts.
 
-> **100% gratuito.** Sem custos de API, sem assinaturas, sem cartão de crédito.
+> **Automação Escalonável & Alta Eficiência:** Arquitetura robusta de ponta a ponta, projetada para renderizar criativos virais com velocidade e máxima qualidade visual.
 
 ---
 
@@ -141,10 +142,10 @@ cp .env.example .env
 
 Edite o arquivo `.env` com suas chaves:
 
-| Variável | Onde obter | Custo |
+| Variável | Origem | Finalidade |
 |:---|:---|:---|
-| `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) no Telegram → `/newbot` | Gratuito |
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) → Get API Key | Gratuito |
+| `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) no Telegram (`/newbot`) | Interface conversacional do bot 24/7 |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | Motor de inteligência generativa e roteirização |
 
 > **Dica:** Deixe `MOCK_DEVICE=True` para testar sem celular físico conectado.
 
@@ -226,15 +227,15 @@ Os testes incluem:
 
 ---
 
-## 💰 Custo Total: R$ 0,00
+## ⚡ Stack Tecnológica & Arquitetura
 
-| Componente | Custo | Detalhes |
+| Camada | Tecnologia | Papel no Pipeline |
 |:---|:---:|:---|
-| Google Gemini API | **Grátis** | 1.500 req/dia via [AI Studio](https://aistudio.google.com) — sem cartão de crédito |
-| Telegram Bot | **Grátis** | Via [@BotFather](https://t.me/BotFather) |
-| YouTube Create | **Grátis** | App oficial do Google para Android |
-| ADB (Android Debug Bridge) | **Grátis** | Utilitário open-source do Google |
-| Fila Local (JSON) | **Grátis** | Persistência em disco — sem banco em nuvem |
+| **Inteligência Artificial** | Google Gemini (Flash) | Geração do roteiro magnético persuasivo em segundos |
+| **Interface do Usuário** | Telegram Bot API (Async) | Recepção de pedidos, aprovação e entrega de mídia |
+| **Motor de Renderização** | YouTube Create (Google) | Edição nativa, legendagem automática e efeitos visuais |
+| **Ponte de Automação** | Android Debug Bridge (ADB) | Controle de hardware 100% autônomo sem intervenção manual |
+| **Fila & Armazenamento** | Atomic Storage Engine | Fila de jobs com retenção programada de 24h e auto-limpeza |
 
 ---
 
