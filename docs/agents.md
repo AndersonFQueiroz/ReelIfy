@@ -1,73 +1,66 @@
-# Guia para Agentes de IA & Desenvolvedores (agents.md)
-**Projeto:** ReelIfy  
-**Versão:** 1.0.0 (MVP)  
-**Propósito:** Este documento serve como referência e alinhamento de contexto para sessões futuras de agentes de IA (Antigravity, Claude Code, etc.) e desenvolvedores que atuarem neste repositório.
+# Guia para agentes e desenvolvedores
 
----
+Este documento descreve o comportamento atual do ReelIfy. O código é a fonte de verdade quando houver divergência.
 
-## 1. Contexto Essencial do Projeto
-- **Objetivo do Negócio:** Criar vídeos curtos (~20 segundos) automatizados para divulgação de produtos por afiliados (ReelIfy).
-- **Usuária Principal:** Irmã do criador do projeto (afiliada).
-- **Interface do Usuário:** Bot do Telegram (envia foto, dados do produto e link de afiliado; recebe o vídeo final pronto).
-- **Geração de Conteúdo:** Google Gemini API (`gemini-1.5-flash` / `gemini-2.0-flash`), 100% gratuita via Google AI Studio com cota de 1.500 req/dia e 1M tokens de contexto, gerando roteiros persuasivos (Gancho, Problema, Solução, Prova Social, CTA).
-- **Geração de Vídeo:** Aplicativo **YouTube Create** (disponível exclusivamente para Android/iOS, sem versão desktop), rodando em um celular Android físico dedicado controlado via comandos ADB a partir de um script Python.
+## Visão atual
 
----
+O sistema possui dois processos independentes:
 
-## 2. Decisões de Arquitetura & Racionais
+- `python3 -m bot.main`: bot assíncrono do Telegram.
+- `python3 -m automation.worker`: worker que consome `data/queue.json` e automatiza o YouTube Create via ADB.
 
-### 2.1. Desacoplamento Total entre Bot e Automação
-- **Decisão:** Separar a pasta `/bot` da pasta `/automation`.
-- **Por quê?** O bot precisa estar sempre online (hospedado no Render, VPS ou rodando como serviço) para atender a usuária no Telegram a qualquer hora. O script de automação depende do PC físico ligado e do celular conectado via USB/Wi-Fi. Eles se comunicam exclusivamente através de uma fila (`queue.json` ou endpoints HTTP no modo distribuído).
+O bot recebe texto, links, fotos e documentos de imagem em qualquer ordem. O `AgentService` mantém uma sessão por chat, usa Gemini com function calling e visão multimodal quando há imagem, consulta o RAG local e só cria um job depois da aprovação do roteiro.
 
-### 2.2. Fila em JSON com Schema Relacional
-- **Decisão:** Iniciar o MVP usando um arquivo `data/queue.json` bem estruturado, com camada de abstração (`QueueService`).
-- **Por quê?** Facilita o desenvolvimento inicial sem necessidade de configurar bancos externos. O schema foi desenhado para ser 100% intercambiável com SQLite ou PostgreSQL via SQLAlchemy/Tortoise sem mexer na lógica do bot ou do worker.
+## Fluxo do agente
 
-### 2.3. Isolamento de Coordenadas de Tela (`coordinates.yaml`)
-- **Decisão:** Proibido manter coordenadas de toque `(x, y)` ou nomes fixos de pacotes dentro dos scripts Python. Tudo reside em `config/coordinates.yaml`.
-- **Por quê?** O usuário pode trocar de aparelho celular, alterar resolução da tela ou o app YouTube Create sofrer atualizações na UI. A calibração deve ser feita apenas editando o arquivo YAML de coordenadas, sem tocar no código-fonte.
+1. `/novo_video` inicia ou reinicia a sessão.
+2. O usuário conversa livremente; o agente extrai produto, benefícios, público, estilo, mídia, link e destino.
+3. Escolhas opcionais recebem defaults seguros: público genérico, demonstração, cópia manual do link, provedor disponível único e placeholder quando não há foto.
+4. O agente pergunta apenas o que for indispensável.
+5. Uma prévia completa é exibida no Telegram, incluindo texto corrido copiável.
+6. O usuário pode aprovar, corrigir escrevendo, regenerar ou cancelar.
+7. Somente a aprovação cria um `Job` `PENDING` na fila.
 
-### 2.4. Modo Mock Obrigatório (`MOCK_DEVICE=True`)
-- **Decisão:** A automação deve obrigatoriamente suportar execução em modo simulado.
-- **Por quê?** Grande parte do desenvolvimento ocorre em ambientes sem o celular físico conectado (ex: terminal Debian/Termux ou servidores remotos). O mock emula cliques ADB, gera vídeos fictícios de teste e permite validar o pipeline de ponta a ponta sem o hardware físico.
+Quando Gemini falha, fica sem chave ou excede o timeout conversacional, o fallback local preserva a sessão e não enfileira automaticamente. Correções aprovadas são transformadas em regras gerais e gravadas no RAG SQLite.
 
-### 2.5. Estratégia de Inspeção de Tela
-- **Decisão:** Priorizar a inspeção da árvore de acessibilidade (`adb shell uiautomator dump`) em vez de reconhecimento de imagem/OCR puro.
-- **Por quê?** O dump XML retorna os textos exatos dos botões e seus estados (`enabled="true"`, `clickable="true"`), sendo imune a variações de escala, modo escuro/claro e iluminação. OCR e Template Matching permanecem apenas como fallback.
+## Arquivos principais
 
----
+| Arquivo | Responsabilidade |
+|---|---|
+| `bot/main.py` | Registra comandos, mensagens, fotos e callbacks de revisão |
+| `bot/handlers/start.py` | `/start`, `/ajuda`, autorização e revogação |
+| `bot/handlers/agent.py` | Entrada multimodal e botões de aprovar/corrigir/regenerar |
+| `bot/services/agent_service.py` | Sessão, briefing, RAG, visão, prévia e aprovação |
+| `bot/services/gemini_service.py` | Geração estruturada do roteiro e fallback local |
+| `bot/services/queue_service.py` | Persistência e estados dos jobs em JSON |
+| `bot/services/image_providers.py` | Imagem Gemini opcional e fallback placeholder |
+| `bot/services/video_providers.py` | Registro de disponibilidade dos motores |
+| `automation/worker.py` | Processamento ADB/mock e entrega do MP4 |
+| `tools/reelify_dashboard.py` | Dashboard de terminal para fila, acessos e logs |
 
-## 3. Convenções de Código e Padrões
+## RAG
 
-1. **Linguagem:** Python 3.10+.
-2. **Tipagem Estrita:** Uso de `typing` (`Optional`, `Dict`, `List`, `Union`) e Dataclasses / Pydantic para validação do payload de jobs.
-3. **Assincronismo:** O bot do Telegram deve ser estritamente assíncrono (`async` / `await`) utilizando `python-telegram-bot` v20+.
-4. **Gerenciamento de Segredos:** Nunca comitar tokens ou dados sensíveis. Carregar de `.env` usando `python-dotenv`. Manter `.env.example` atualizado.
-5. **Tratamento de Exceções:** Toda chamada ADB ou de rede deve ser encapsulada em blocos `try/except` com logging contextualizado contendo o `job_id`. Em caso de erro irrecuperável, o usuário do Telegram deve sempre receber uma mensagem explicativa.
-6. **Logging:**
-   - Usar `logger = logging.getLogger(__name__)`.
-   - Níveis adequados: `DEBUG` para payloads e coordenadas de toques; `INFO` para mudanças de status do pedido; `ERROR` para falhas com stacktrace completo.
+O banco `data/agent.db` contém sessões temporárias, documentos-base e índice FTS5. Regras de persona, gramática, CTA e mídia são semeadas na primeira execução. Ao concluir ou cancelar uma sessão, correções são anonimizadas, generalizadas, deduplicadas e submetidas à poda quando o limite é atingido.
 
----
+Não guardar tokens, URLs privadas, IDs de chat ou dados pessoais no RAG. Não permitir que o modelo execute ações diretamente: a aplicação valida toda chamada de ferramenta.
 
-## 4. Instruções para Agentes de IA em Sessões Futuras
+## Acesso e operação
 
-Quando um novo agente iniciar uma sessão neste projeto, deve seguir este protocolo:
+- `ALLOWED_CHAT_IDS`: acessos fixos no `.env`.
+- `MAGIC_WORD`: libera um chat permanentemente em `authorized_chat_ids.json`.
+- `ADMIN_CHAT_IDS`: chats que podem usar `/autorizar` e `/revogar`.
+- `/status` e `/pedidos`: consulta de jobs do próprio chat.
+- Dashboard: `python3 -m tools.reelify_dashboard`.
 
-1. **Checar o Status dos Arquivos:**
-   - Verificar `/docs/requirements.md` e `/docs/specs.md` para entender as definições vigentes.
-   - Verificar se o usuário já está com o celular físico em mãos ou se continua trabalhando em ambiente simulado.
+## Provedores
 
-2. **Ordem de Implementação Definida:**
-   - **Etapa 1:** Configurações e modelos de dados (`config/settings.py`, `config/coordinates.yaml`, schema do Job).
-   - **Etapa 2:** Serviço de IA (`bot/services/gemini_service.py`) com gerador de roteiro de 20s.
-   - **Etapa 3:** Serviço de Fila (`bot/services/queue_service.py`) com persistência em JSON.
-   - **Etapa 4:** Handlers do Telegram Bot (`/start`, `/novo_video`, `/status`).
-   - **Etapa 5:** Wrapper ADB com Mock (`automation/adb/device.py` e `automation/mock/mock_device.py`).
-   - **Etapa 6:** Orquestrador do YouTube Create e Worker de Polling (`automation/worker.py`).
-   - **Etapa 7:** Calibração final das coordenadas quando o hardware físico estiver conectado.
+O caminho implementado de produção é ADB + YouTube Create; `MOCK_DEVICE=True` permite testes sem aparelho. A camada `VideoProvider` registra disponibilidade e foi mantida como ponto de extensão. Um provedor HTTP externo ainda precisa de um serviço específico, contrato de API, autenticação e integração real no worker; não tratar Veo ou qualquer serviço sem quota confirmada como gratuito.
 
-3. **Como Rodar Testes sem Hardware Físico:**
-   - Definir `MOCK_DEVICE=True` no ambiente.
-   - Executar os testes automatizados da pasta `tests/`.
+## Regras para alterações
+
+- Preservar o fluxo de aprovação obrigatória.
+- Manter mensagens simples e naturais para o usuário final.
+- Não perguntar novamente algo presente no texto ou legível na imagem.
+- Escapar texto dinâmico nas mensagens Markdown.
+- Não comitar `.env`, banco real, fila real ou mídias do usuário.
+- Rodar `pytest -q` e `git diff --check` antes do commit.

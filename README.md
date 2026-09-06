@@ -17,7 +17,7 @@
 
 ---
 
-**ReelIfy** é uma solução de alta performance para automação ponta a ponta de vídeos curtos (~20 segundos) para criadores e afiliados. Envie a foto e dados do produto pelo **Telegram**, e a inteligência artificial gera um roteiro magnético de alta conversão. O vídeo é produzido, editado e renderizado de forma 100% autônoma através de orquestração via **ADB** no **YouTube Create** — pronto para publicação em escala no Reels, TikTok e Shorts.
+**ReelIfy** é uma solução de automação ponta a ponta para vídeos curtos (~20 segundos). Pelo **Telegram**, o usuário conversa com um agente de IA, envia texto, links e imagens em qualquer ordem, revisa o roteiro no chat e aprova a produção. O worker produz o vídeo via **ADB** no **YouTube Create** e devolve o MP4 ao Telegram.
 
 > **Automação Escalonável & Alta Eficiência:** Arquitetura robusta de ponta a ponta, projetada para renderizar criativos virais com velocidade e máxima qualidade visual.
 
@@ -46,7 +46,7 @@
               │       (App Telegram)        │
               └─────────────┬───────────────┘
                             │
-              1. Envia foto + dados do produto
+              1. Conversa, envia texto e/ou imagem
               7. Recebe vídeo MP4 (20s)
                             ▼
               ┌─────────────────────────────┐
@@ -54,11 +54,11 @@
               │     (Async / Polling)       │
               └──────┬──────────────┬───────┘
                      │              │
-   2. Gera Roteiro   │              │  3. Enfileira Job
+   2. Analisa e mostra prévia       │  3. Enfileira após aprovação
                      ▼              ▼
    ┌──────────────────────┐  ┌──────────────────────┐
    │  Google Gemini API   │  │  Fila de Jobs (JSON) │
-   │  (Flash — Gratuito)  │  │  (Persistente)       │
+   │ (texto, visão, tools)│  │ (persistente)        │
    └──────────────────────┘  └──────────┬───────────┘
                                         │
                           4. Polling / Fetch Job
@@ -150,7 +150,7 @@ Edite o arquivo `.env` com suas chaves:
 |:---|:---|:---|
 | `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) no Telegram (`/newbot`) | Interface conversacional do bot 24/7 |
 | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | Motor de inteligência generativa e roteirização |
-| `GEMINI_IMAGE_MODEL` | Google AI Studio, opcional | Modelo de imagem; se ausente, usa placeholder gratuito |
+| `GEMINI_IMAGE_MODEL` | Google AI Studio, opcional | Modelo de imagem; se ausente ou indisponível, usa placeholder |
 | `AGENT_DB_PATH` | Local | Banco SQLite do agente e RAG |
 | `VIDEO_PROVIDER_POLICY` | Local | `free_only` impede uso automático de provedores pagos |
 
