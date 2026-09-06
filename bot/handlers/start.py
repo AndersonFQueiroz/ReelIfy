@@ -64,7 +64,26 @@ async def liberate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     _grant_access(update.effective_chat.id)
-    await update.message.reply_text("✅ Acesso liberado permanentemente. Use /novo_video para começar.")
+    await update.message.reply_text(
+        "✅ *Acesso liberado permanentemente!*\n\n"
+        "Agora você já pode criar vídeos pelo Reelify.\n\n"
+        "📌 *Comandos principais:*\n"
+        "• `/novo_video` — cria um pedido com revisão e aprovação do roteiro.\n"
+        "• `/auto` — cria e envia o pedido para a fila automaticamente.\n"
+        "• `/status` — consulta o andamento dos seus pedidos.\n"
+        "• `/ajuda` — mostra as instruções completas do bot.\n"
+        "• `/cancelar` — cancela a operação atual.\n\n"
+        "🧭 *Como funciona:*\n"
+        "1. Escolha `/novo_video` ou `/auto`.\n"
+        "2. Informe nome, benefícios, público-alvo e link do produto.\n"
+        "3. Envie de 1 a 3 fotos do produto.\n"
+        "4. A IA gera um roteiro de aproximadamente 20 segundos.\n"
+        "5. No modo interativo, você pode aprovar ou regenerar o roteiro.\n"
+        "6. O pedido aprovado entra na fila para produção do vídeo.\n\n"
+        "💡 *Dica:* use `/ajuda` a qualquer momento para rever todas as etapas.\n"
+        "",
+        parse_mode="Markdown",
+    )
 
 
 async def authorize_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
