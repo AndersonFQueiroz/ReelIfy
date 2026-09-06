@@ -23,6 +23,24 @@ logging.basicConfig(
 logger = logging.getLogger("bot.main")
 
 
+async def error_handler(update, context):
+    """Registra falhas de handlers e informa o usuário quando possível."""
+    error = context.error
+    logger.error(
+        "Erro não tratado ao processar uma atualização: %s",
+        error,
+        exc_info=(type(error), error, error.__traceback__) if error else None,
+    )
+    message = getattr(update, "effective_message", None)
+    if message:
+        try:
+            await message.reply_text(
+                "⚠️ Não consegui concluir esse comando agora. Tente novamente em alguns segundos."
+            )
+        except Exception:
+            logger.exception("Também não foi possível enviar a mensagem de erro ao usuário.")
+
+
 def create_bot_app():
     """Cria e configura a aplicação do Telegram Bot."""
     if not settings.telegram_bot_token:
@@ -41,6 +59,7 @@ def create_bot_app():
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("pedidos", status_command))
     app.add_handler(order_conversation_handler)
+    app.add_error_handler(error_handler)
 
     return app
 

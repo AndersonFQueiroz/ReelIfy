@@ -6,11 +6,16 @@ import hmac
 import json
 import logging
 from telegram import Update
+from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
 
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
+def _md(value) -> str:
+    """Escapa valores dinâmicos para o Markdown legado do Telegram."""
+    return escape_markdown(str(value), version=1)
+
 
 AUTHORIZED_USERS_FILE = settings.base_dir / "data" / "authorized_chat_ids.json"
 
@@ -77,7 +82,7 @@ async def liberate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     await update.message.reply_text(
         "✅ *Acesso liberado permanentemente!*\n\n"
-        f"Agora você já pode criar vídeos pelo {bot_name}.\n\n"
+        f"Agora você já pode criar vídeos pelo {_md(bot_name)}.\n\n"
         "📌 *Comandos principais:*\n"
         "• `/novo_video` — cria um pedido com revisão e aprovação do roteiro.\n"
         "• `/auto` — cria e envia o pedido para a fila automaticamente.\n"
@@ -138,7 +143,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not is_user_authorized(chat_id):
         logger.warning(f"Acesso negado para o chat_id: {chat_id} (Usuário: {user.username})")
         await update.message.reply_text(
-            f"⛔ Olá, {user.first_name}! Você não possui autorização para utilizar este robô.\n"
+            f"⛔ Olá, {_md(user.first_name)}! Você não possui autorização para utilizar este robô.\n"
             f"Seu ID do Telegram é: `{chat_id}`\n\n"
             f"Se você recebeu a palavra mágica, use /liberar PALAVRA.",
             parse_mode="Markdown"
@@ -148,7 +153,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     logger.info(f"Usuário autorizado acessou /start: {chat_id} ({user.username})")
     bot_name = await get_bot_display_name(context)
     await update.message.reply_text(
-        f"👋 Olá, *{user.first_name}*! Seja bem-vinda ao {bot_name} — Gerador Automático de Vídeos!\n\n"
+        f"👋 Olá, *{_md(user.first_name)}*! Seja bem-vinda ao {_md(bot_name)} — Gerador Automático de Vídeos!\n\n"
         f"Com este robô, você pode transformar fotos e links de produtos em vídeos curtos persuasivos (20s) prontos para o YouTube Shorts, Reels e TikTok.\n\n"
         f"📌 *Comandos Disponíveis:*\n"
         f"• `/novo_video` - Iniciar o pedido de um novo vídeo\n"
@@ -178,7 +183,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "3. A inteligência artificial (Google Gemini) cria um roteiro magnético de 20s dividido em Gancho, Problema, Solução, Prova Social e CTA.\n"
         "4. O pedido entra na fila de produção no celular.\n"
         "5. O celular automatizado gera o vídeo no *YouTube Create* e o robô te entrega o arquivo final em vídeo MP4 aqui no chat!\n\n"
-        "\n🔐 Para liberar um novo usuário: /liberar PALAVRA_MÁGICA.\n"
+        "\n🔐 Para liberar um novo usuário: `/liberar SUA_SENHA`.\n"
         "Administradores: /autorizar ID e /revogar ID.\n\n"
         "Dúvidas ou travamentos? Use `/status` para acompanhar.",
         parse_mode="Markdown"

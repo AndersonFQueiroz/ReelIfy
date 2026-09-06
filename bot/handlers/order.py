@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 import uuid
 from telegram import Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.helpers import escape_markdown
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
@@ -28,6 +29,10 @@ from bot.services.gemini_service import gemini_service
 from bot.services.queue_service import queue_service, ProductData
 
 logger = logging.getLogger(__name__)
+def _md(value) -> str:
+    """Escapa valores dinâmicos para o Markdown legado do Telegram."""
+    return escape_markdown(str(value), version=1)
+
 
 # Estados da conversação
 (
@@ -47,13 +52,13 @@ def _format_script_preview(script_data) -> str:
     """Formata o roteiro gerado para exibição bonita no chat."""
     return (
         "📝 *Roteiro de 20s Gerado pela IA:*\n\n"
-        f"🪝 *Gancho (0-3s):*\n_{script_data.hook}_\n\n"
-        f"⚠️ *Problema (3-8s):*\n_{script_data.problem}_\n\n"
-        f"💡 *Solução (8-14s):*\n_{script_data.solution}_\n\n"
-        f"⭐ *Prova Social (14-17s):*\n_{script_data.proof}_\n\n"
-        f"👉 *CTA (17-20s):*\n_{script_data.cta}_\n\n"
+        f"🪝 *Gancho (0-3s):*\n_{_md(script_data.hook)}_\n\n"
+        f"⚠️ *Problema (3-8s):*\n_{_md(script_data.problem)}_\n\n"
+        f"💡 *Solução (8-14s):*\n_{_md(script_data.solution)}_\n\n"
+        f"⭐ *Prova Social (14-17s):*\n_{_md(script_data.proof)}_\n\n"
+        f"👉 *CTA (17-20s):*\n_{_md(script_data.cta)}_\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🗣️ *Texto completo para narração:*\n_{script_data.full_text}_"
+        f"🗣️ *Texto completo para narração:*\n_{_md(script_data.full_text)}_"
     )
 
 
@@ -126,7 +131,7 @@ async def _enqueue_job(update, context) -> str:
     return (
         f"🎉 *Pedido Enfileirado com Sucesso!*\n\n"
         f"🆔 *ID:* `{job.job_id[:8]}`\n"
-        f"📦 *Produto:* {product.name}\n"
+        f"📦 *Produto:* {_md(product.name)}\n"
         f"📊 *Status:* Na fila de geração\n\n"
         f"📱 Assim que o vídeo for renderizado no YouTube Create, "
         f"enviaremos o MP4 aqui!\n\n"
@@ -192,7 +197,7 @@ async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
     context.user_data["product_name"] = product_name
     await update.message.reply_text(
-        f"✅ Produto: *{product_name}*\n\n"
+        f"✅ Produto: *{_md(product_name)}*\n\n"
         "Agora descreva os *principais benefícios e diferenciais*.\n"
         "_(Ex: Cozinha sem óleo, 4.5L, painel digital, limpa em 1 minuto)_",
         parse_mode="Markdown",

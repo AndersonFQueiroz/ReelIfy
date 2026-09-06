@@ -4,6 +4,7 @@ Permite ao usuário acompanhar o progresso dos seus vídeos enfileirados e concl
 """
 import logging
 from telegram import Update
+from telegram.helpers import escape_markdown
 from telegram.ext import ContextTypes
 
 from config.settings import settings
@@ -11,6 +12,10 @@ from bot.handlers.start import is_user_authorized, get_bot_display_name
 from bot.services.queue_service import queue_service, JobStatus
 
 logger = logging.getLogger(__name__)
+def _md(value) -> str:
+    """Escapa valores dinâmicos para o Markdown legado do Telegram."""
+    return escape_markdown(str(value), version=1)
+
 
 STATUS_EMOJIS = {
     JobStatus.PENDING: "⏳ Na Fila (aguardando celular)",
@@ -32,7 +37,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not jobs:
         await update.message.reply_text(
             "📭 Você ainda não solicitou nenhum vídeo.\n\n"
-            f"Digite `/novo_video` para criar o seu primeiro vídeo com o {bot_name}!",
+            f"Digite `/novo_video` para criar o seu primeiro vídeo com o {_md(bot_name)}!",
             parse_mode="Markdown"
         )
         return
@@ -44,13 +49,13 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     for idx, job in enumerate(recent_jobs, 1):
         status_label = STATUS_EMOJIS.get(job.status, str(job.status))
         lines.append(
-            f"*{idx}. {job.product.name}*\n"
+            f"*{idx}. {_md(job.product.name)}*\n"
             f"• *ID:* `{job.job_id[:8]}`\n"
             f"• *Situação:* {status_label}\n"
             f"• *Criado em:* {job.created_at[:19].replace('T', ' ')}"
         )
         if job.status == JobStatus.FAILED and job.error_details:
-            lines.append(f"• *Erro:* _{job.error_details}_")
+            lines.append(f"• *Erro:* _{_md(job.error_details)}_")
         lines.append("")
 
     if settings.mock_device:
