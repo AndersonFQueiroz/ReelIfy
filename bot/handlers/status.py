@@ -55,9 +55,13 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if settings.mock_device:
         lines.append(
             "\nℹ️ *Hardware:* Operando em modo simulado. O roteiro com IA está 100% funcional. "
-            "A geração dos vídeos no celular iniciará quando o notebook 24/7 e o celular slave forem conectados via USB."
+            "A geração dos vídeos no celular iniciará quando o notebook 24/7 e o celular slave forem conectados via USB.\n"
+            "⏰ *Lembrete:* Pedidos pendentes na fila são guardados por até *1 dia (24h)* para evitar sobrecarga."
         )
     else:
-        lines.append("💡 _Os vídeos são produzidos um a um no aparelho físico._")
+        lines.append(
+            "💡 _Os vídeos são produzidos um a um no aparelho físico._\n"
+            "⏰ *Lembrete:* Pedidos pendentes na fila são guardados por até *1 dia (24h)*."
+        )
 
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")

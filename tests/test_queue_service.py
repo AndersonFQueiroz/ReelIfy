@@ -59,3 +59,65 @@ def test_create_and_get_job(temp_queue_service):
     completed_job = temp_queue_service.mark_completed(job.job_id, "/tmp/video_final.mp4")
     assert completed_job.status == JobStatus.COMPLETED
     assert completed_job.output_video_path == "/tmp/video_final.mp4"
+
+
+def test_cleanup_expired_jobs(temp_queue_service):
+    """Verifica que pedidos pendentes com mais de 24h são excluídos junto com suas fotos."""
+    from datetime import datetime, timezone, timedelta
+
+    # Cria uma foto temporária para testar exclusão em disco
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tf:
+        tf.write(b"imagem_antiga")
+        old_photo = tf.name
+
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tf2:
+        tf2.write(b"imagem_recente")
+        recent_photo = tf2.name
+
+    product_old = ProductData(
+        name="Produto Antigo (+24h)",
+        description="Descrição",
+        target_audience="Público",
+        affiliate_link="",
+        photo_local_path=old_photo,
+    )
+    product_recent = ProductData(
+        name="Produto Recente (1h)",
+        description="Descrição",
+        target_audience="Público",
+        affiliate_link="",
+        photo_local_path=recent_photo,
+    )
+    script = ScriptData(
+        hook="H", problem="P", solution="S", proof="Pr", cta="C", full_text="Texto"
+    )
+
+    # Cria 2 jobs
+    job_old = temp_queue_service.create_job(111, "antigo", product_old, script)
+    job_recent = temp_queue_service.create_job(222, "recente", product_recent, script)
+
+    # Forçar a data do job_old para 25 horas atrás
+    now = datetime.now(timezone.utc)
+    old_time = (now - timedelta(hours=25)).isoformat()
+    jobs = temp_queue_service._read_all()
+    for j in jobs:
+        if j.job_id == job_old.job_id:
+            j.created_at = old_time
+    temp_queue_service._write_all(jobs)
+
+    # Executar limpeza de pedidos > 24h
+    removed = temp_queue_service.cleanup_expired_jobs(max_age_hours=24)
+    assert removed == 1
+
+    # Verificar que o job_old sumiu da fila
+    remaining_jobs = temp_queue_service._read_all()
+    assert len(remaining_jobs) == 1
+    assert remaining_jobs[0].job_id == job_recent.job_id
+
+    # Verificar que a foto do job antigo foi excluída do disco
+    assert not Path(old_photo).exists()
+    # A foto recente deve continuar intacta
+    assert Path(recent_photo).exists()
+
+    # Limpeza
+    Path(recent_photo).unlink(missing_ok=True)

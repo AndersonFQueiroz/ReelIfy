@@ -217,10 +217,15 @@ class VideoAutomationWorker:
         success = self.process_job(job)
         if success:
             local_video = Path(job.output_video_path) if job.output_video_path else None
+            affiliate_text = (
+                f"🔗 *Link de Afiliado:* {job.product.affiliate_link}\n\n"
+                if job.product.affiliate_link
+                else "🔗 *Link de Afiliado:* (Não informado — use seu link na bio!)\n\n"
+            )
             caption = (
                 f"🎉 *Seu vídeo de 20s está pronto!*\n\n"
                 f"📦 *Produto:* {job.product.name}\n"
-                f"🔗 *Link de Afiliado:* {job.product.affiliate_link}\n\n"
+                f"{affiliate_text}"
                 f"📝 *Roteiro Usado:*\n_{job.script.full_text}_\n\n"
                 f"🚀 Prontinho para postar no YouTube Shorts, Reels e TikTok!"
             )
@@ -239,8 +244,10 @@ class VideoAutomationWorker:
                     f"ℹ️ *Aviso sobre a Produção do Vídeo:*\n"
                     f"O notebook 24/7 e o celular slave ainda não estão conectados ao sistema.\n"
                     f"Por enquanto, você já tem o *roteiro completo gerado acima* para utilizar!\n\n"
-                    f"Assim que o notebook e o celular com YouTube Create forem plugados via USB, "
-                    f"a produção dos vídeos será iniciada automaticamente. 🚀"
+                    f"⏰ *Prazo de Espera da Fila (Apenas 1 Dia):*\n"
+                    f"O pedido fica guardado na fila por no máximo *1 dia (24 horas)*. "
+                    f"Conecte o celular com YouTube Create via USB dentro desse prazo para gerar o vídeo automaticamente.\n\n"
+                    f"⚠️ *Nota:* Após 24h sem conexão, pedidos pendentes são excluídos para evitar acúmulo e consumo excessivo de recursos."
                 )
             else:
                 alert = (
@@ -255,6 +262,7 @@ class VideoAutomationWorker:
         logger.info(f"Worker ativo! Modo Mock={settings.mock_device}. Polling a cada {settings.worker_poll_interval}s...")
         while True:
             try:
+                self.queue_service.cleanup_expired_jobs(max_age_hours=24)
                 await self.step_and_deliver()
             except Exception as e:
                 logger.error(f"Erro no loop do worker: {e}", exc_info=True)

@@ -70,12 +70,13 @@ class GeminiService:
         Gera um roteiro estruturado de 20s a partir dos dados do produto.
         Caso a API não esteja configurada ou ocorra falha, gera um roteiro fallback.
         """
+        affiliate_info = affiliate_link.strip() if affiliate_link else "Link na bio ou primeiro comentário fixado"
         user_prompt = (
             f"Crie um roteiro persuasivo de 20 segundos para o produto abaixo:\n"
             f"- Nome do Produto: {product_name}\n"
             f"- Principais Benefícios / Descrição: {description}\n"
             f"- Público-Alvo: {target_audience}\n"
-            f"- Link de Afiliado (para o CTA): {affiliate_link}\n"
+            f"- Link de Afiliado (para o CTA): {affiliate_info}\n"
         )
 
         if self._client:

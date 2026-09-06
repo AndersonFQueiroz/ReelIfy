@@ -147,8 +147,52 @@ class QueueService:
             logger.info(f"Job {new_job.job_id} criado com sucesso para o chat {chat_id}.")
             return new_job
 
+    def cleanup_expired_jobs(self, max_age_hours: int = 24) -> int:
+        """
+        Remove pedidos PENDING com mais de max_age_hours (padrão 24h = 1 dia)
+        e apaga os arquivos de foto de entrada associados para não lotar o disco
+        e evitar processar uma avalanche acumulada de vídeos antigos.
+        Retorna a quantidade de jobs expirados removidos.
+        """
+        with self._lock:
+            jobs = self._read_all()
+            now = datetime.now(timezone.utc)
+            kept_jobs = []
+            removed_count = 0
+            for job in jobs:
+                is_expired = False
+                if job.status == JobStatus.PENDING and job.created_at:
+                    try:
+                        created_dt = datetime.fromisoformat(job.created_at)
+                        if created_dt.tzinfo is None:
+                            created_dt = created_dt.replace(tzinfo=timezone.utc)
+                        age_seconds = (now - created_dt).total_seconds()
+                        if age_seconds > (max_age_hours * 3600):
+                            is_expired = True
+                    except Exception as e:
+                        logger.warning(f"Erro ao analisar data de criação do job {job.job_id}: {e}")
+
+                if is_expired:
+                    removed_count += 1
+                    logger.info(f"Job {job.job_id} ({job.product.name}) expirou após {max_age_hours}h e foi removido da fila.")
+                    if job.product.photo_local_path:
+                        try:
+                            p = Path(job.product.photo_local_path)
+                            if p.exists() and p.is_file():
+                                p.unlink()
+                                logger.info(f"Foto de entrada removida: {p}")
+                        except Exception as e:
+                            logger.error(f"Erro ao excluir foto de job expirado {job.product.photo_local_path}: {e}")
+                else:
+                    kept_jobs.append(job)
+
+            if removed_count > 0:
+                self._write_all(kept_jobs)
+            return removed_count
+
     def get_next_pending_job(self) -> Optional[Job]:
         """Recupera o próximo pedido PENDING e o altera para PROCESSING de forma atômica."""
+        self.cleanup_expired_jobs(max_age_hours=24)
         with self._lock:
             jobs = self._read_all()
             for job in jobs:
@@ -171,6 +215,7 @@ class QueueService:
 
     def get_jobs_by_chat_id(self, chat_id: int) -> List[Job]:
         """Retorna todos os pedidos de um determinado usuário."""
+        self.cleanup_expired_jobs(max_age_hours=24)
         with self._lock:
             return [job for job in self._read_all() if job.chat_id == chat_id]
 

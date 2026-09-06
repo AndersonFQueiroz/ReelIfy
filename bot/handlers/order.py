@@ -98,11 +98,17 @@ async def _enqueue_job(update, context) -> str:
     hardware_msg = ""
     if settings.mock_device:
         hardware_msg = (
-            "\n\nℹ️ *Nota sobre a Geração de Vídeos:*\n"
-            "O roteiro está pronto e seguro! O notebook 24/7 e o celular slave ainda "
-            "não estão plugados para edição no YouTube Create. Por enquanto o sistema gera "
-            "e salva o roteiro completo. Assim que a estação física for conectada, os vídeos "
-            "serão processados automaticamente!"
+            "\n\n⏰ *Prazo da Fila (Apenas 1 Dia):*\n"
+            "O roteiro com IA está salvo com sucesso! 📝\n"
+            "Os pedidos aguardando conexão com o notebook/celular ficam guardados "
+            "na fila por no máximo *1 dia (24 horas)*.\n"
+            "Conecte o notebook e o celular com YouTube Create dentro de 24h para renderizar o vídeo automaticamente.\n"
+            "⚠️ *Aviso:* Após 24h sem conexão, pedidos pendentes são excluídos automaticamente para evitar acúmulo e sobrecarga."
+        )
+    else:
+        hardware_msg = (
+            "\n\n⏰ *Nota sobre a Fila:* Pedidos pendentes são mantidos na fila por até *1 dia (24 horas)* "
+            "aguardando a produção no celular físico."
         )
 
     return (
@@ -195,16 +201,30 @@ async def receive_description(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def receive_audience(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["target_audience"] = update.message.text.strip()
     await update.message.reply_text(
-        "🔗 Envie o seu *Link de Afiliado*:\n"
-        "_(Ex: https://shopee.com.br/seu-link-de-afiliado)_",
+        "🔗 Envie o seu *Link de Afiliado* *(OPCIONAL)*:\n"
+        "_(Ex: https://shopee.com.br/seu-link-de-afiliado)_\n\n"
+        "💡 *Para que serve este link?*\n"
+        "• O bot monta a legenda completa para você só copiar e postar junto com o vídeo.\n"
+        "• Ajuda a IA a criar a chamada final do roteiro (ex: 'link na bio').\n\n"
+        "👉 *É 100% opcional!* Se você não tiver o link em mãos agora ou preferir adicionar depois, "
+        "basta digitar *pular*, *nenhum* ou enviar apenas um ponto `.`",
         parse_mode="Markdown",
     )
     return STATE_LINK
 
 
 async def receive_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["affiliate_link"] = update.message.text.strip()
+    raw_text = update.message.text.strip()
+    # Verifica se o usuário optou por pular o link
+    if raw_text.lower() in ["pular", "skip", "nenhum", "nenhuma", ".", "-", "nao", "não", "sem link", "sem"]:
+        context.user_data["affiliate_link"] = ""
+        link_feedback = "⏩ *Link de afiliado pulado!* (Usaremos 'link na bio' no roteiro)"
+    else:
+        context.user_data["affiliate_link"] = raw_text
+        link_feedback = f"✅ *Link registrado:* `{raw_text}`"
+
     await update.message.reply_text(
+        f"{link_feedback}\n\n"
         "📸 Por fim, envie uma *FOTO de alta qualidade* do produto!\n\n"
         "Dicas:\n"
         "• Foto nítida e bem iluminada\n"
