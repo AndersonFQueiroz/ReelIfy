@@ -103,7 +103,11 @@ class VideoAutomationWorker:
         """Executa o ciclo completo de automação para um pedido."""
         logger.info(f"==> Iniciando processamento do Job {job.job_id} ({job.product.name})")
 
-        remote_photo_path = f"{self.remote_temp_dir}current_product.jpg"
+        photos_to_send = job.product.photos_local_paths or ([job.product.photo_local_path] if job.product.photo_local_path else [])
+        remote_photo_paths = [
+            f"{self.remote_temp_dir}product_photo_{i + 1}.jpg"
+            for i in range(len(photos_to_send))
+        ]
         remote_video_path = f"/sdcard/Movies/YouTubeCreate/final_{job.job_id[:8]}.mp4"
         local_video_output = settings.media_outputs_dir / f"video_{job.job_id[:8]}.mp4"
 
@@ -118,10 +122,11 @@ class VideoAutomationWorker:
             # 1. Acordar e destravar celular
             self.device.wake_and_unlock()
 
-            # 2. Transferir a foto para o celular
-            logger.info("Enviando foto do produto para o celular...")
-            if not self.device.push_file(job.product.photo_local_path, remote_photo_path):
-                raise RuntimeError("Falha ao transferir foto para o armazenamento do celular.")
+            # 2. Transferir as fotos para o celular
+            logger.info(f"Enviando {len(photos_to_send)} foto(s) do produto para o celular...")
+            for local_p, rem_p in zip(photos_to_send, remote_photo_paths):
+                if not self.device.push_file(local_p, rem_p):
+                    raise RuntimeError(f"Falha ao transferir foto {local_p} para o armazenamento do celular.")
 
             # 3. Iniciar o app YouTube Create
             logger.info(f"Iniciando {self.package_name}...")
@@ -136,8 +141,13 @@ class VideoAutomationWorker:
             time.sleep(1)
             self._tap_point("tab_images")
             time.sleep(1)
-            self._tap_point("first_image_thumbnail")
-            time.sleep(1)
+
+            # Seleciona as miniaturas das fotos (até 3 fotos para múltiplos ângulos)
+            thumbnail_points = ["first_image_thumbnail", "second_image_thumbnail", "third_image_thumbnail"]
+            for idx in range(min(len(photos_to_send), 3)):
+                self._tap_point(thumbnail_points[idx])
+                time.sleep(0.5)
+
             self._tap_point("btn_import_media")
             time.sleep(2)
 
@@ -184,7 +194,7 @@ class VideoAutomationWorker:
                 raise RuntimeError("Falha ao puxar o arquivo de vídeo do celular.")
 
             # 9. Limpar arquivos remotos do celular
-            self.device.clean_remote_files([remote_photo_path, remote_video_path])
+            self.device.clean_remote_files(remote_photo_paths + [remote_video_path])
             self.device.stop_app(self.package_name)
 
             # 10. Sucesso

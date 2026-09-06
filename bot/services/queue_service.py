@@ -3,7 +3,7 @@ Serviço de Fila Persistente (QueueService).
 Gerencia a persistência e transição de estados dos pedidos (Jobs) em formato JSON.
 Desenvolvido com schema padronizado para fácil migração futura para SQLite ou PostgreSQL.
 """
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
 from enum import Enum
 import json
@@ -31,8 +31,20 @@ class ProductData:
     description: str
     target_audience: str
     affiliate_link: str
-    photo_local_path: str
+    photo_local_path: str = ""
     photo_telegram_file_id: Optional[str] = None
+    photos_local_paths: List[str] = field(default_factory=list)
+    photos_telegram_file_ids: List[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.photos_local_paths and self.photo_local_path:
+            self.photos_local_paths = [self.photo_local_path]
+        elif self.photos_local_paths and not self.photo_local_path:
+            self.photo_local_path = self.photos_local_paths[0]
+        if not self.photos_telegram_file_ids and self.photo_telegram_file_id:
+            self.photos_telegram_file_ids = [self.photo_telegram_file_id]
+        elif self.photos_telegram_file_ids and not self.photo_telegram_file_id:
+            self.photo_telegram_file_id = self.photos_telegram_file_ids[0]
 
 
 @dataclass
@@ -175,14 +187,17 @@ class QueueService:
                 if is_expired:
                     removed_count += 1
                     logger.info(f"Job {job.job_id} ({job.product.name}) expirou após {max_age_hours}h e foi removido da fila.")
+                    paths_to_clean = set(job.product.photos_local_paths or [])
                     if job.product.photo_local_path:
+                        paths_to_clean.add(job.product.photo_local_path)
+                    for path_str in paths_to_clean:
                         try:
-                            p = Path(job.product.photo_local_path)
+                            p = Path(path_str)
                             if p.exists() and p.is_file():
                                 p.unlink()
                                 logger.info(f"Foto de entrada removida: {p}")
                         except Exception as e:
-                            logger.error(f"Erro ao excluir foto de job expirado {job.product.photo_local_path}: {e}")
+                            logger.error(f"Erro ao excluir foto de job expirado {path_str}: {e}")
                 else:
                     kept_jobs.append(job)
 

@@ -121,3 +121,30 @@ def test_cleanup_expired_jobs(temp_queue_service):
 
     # Limpeza
     Path(recent_photo).unlink(missing_ok=True)
+
+
+def test_product_multi_photo_support(temp_queue_service):
+    """Verifica suporte a até 3 fotos por produto e persistência na fila."""
+    photos = ["/tmp/photo1.jpg", "/tmp/photo2.jpg", "/tmp/photo3.jpg"]
+    product = ProductData(
+        name="Kit 3 Ângulos",
+        description="Frente, lado e detalhes",
+        target_audience="Compradores",
+        affiliate_link="https://shopee.com.br/kit",
+        photos_local_paths=photos,
+    )
+    # Deve automaticamente preencher photo_local_path com a primeira foto
+    assert product.photo_local_path == "/tmp/photo1.jpg"
+    assert len(product.photos_local_paths) == 3
+
+    script = ScriptData(
+        hook="H", problem="P", solution="S", proof="Pr", cta="C", full_text="Texto"
+    )
+    job = temp_queue_service.create_job(123, "multi_user", product, script)
+
+    # Recupera da fila e valida persistência
+    saved_job = temp_queue_service.get_job_by_id(job.job_id)
+    assert saved_job is not None
+    assert len(saved_job.product.photos_local_paths) == 3
+    assert saved_job.product.photos_local_paths == photos
+    assert saved_job.product.photo_local_path == "/tmp/photo1.jpg"

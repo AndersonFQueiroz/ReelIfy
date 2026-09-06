@@ -65,17 +65,20 @@ class GeminiService:
         description: str,
         target_audience: str,
         affiliate_link: str,
+        photos_count: int = 1,
     ) -> ScriptData:
         """
         Gera um roteiro estruturado de 20s a partir dos dados do produto.
         Caso a API não esteja configurada ou ocorra falha, gera um roteiro fallback.
         """
         affiliate_info = affiliate_link.strip() if affiliate_link else "Link na bio ou primeiro comentário fixado"
+        angles_note = f"- Mídia Visual: O vídeo contará com {photos_count} fotos alternando ângulos e detalhes na linha do tempo.\n" if photos_count > 1 else ""
         user_prompt = (
             f"Crie um roteiro persuasivo de 20 segundos para o produto abaixo:\n"
             f"- Nome do Produto: {product_name}\n"
             f"- Principais Benefícios / Descrição: {description}\n"
             f"- Público-Alvo: {target_audience}\n"
+            f"{angles_note}"
             f"- Link de Afiliado (para o CTA): {affiliate_info}\n"
         )
 

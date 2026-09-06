@@ -20,8 +20,10 @@ coordinates:
   # 2. Seletor de Mídia: Aba de "Fotos" ou "Imagens"
   tab_images: [350, 400]
 
-  # 3. Seletor de Mídia: Miniatura da foto mais recente importada
+  # 3. Seletor de Mídia: Miniaturas das fotos importadas (grade horizontal)
   first_image_thumbnail: [180, 550]
+  second_image_thumbnail: [540, 550]
+  third_image_thumbnail: [900, 550]
 
   # 4. Botão "Importar" / "Avançar" após selecionar a foto
   btn_import_media: [900, 2250]
