@@ -41,6 +41,10 @@ class Settings:
     # Google Gemini API
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    gemini_image_model: str = os.getenv("GEMINI_IMAGE_MODEL", "")
+    agent_db_path: Path = BASE_DIR / os.getenv("AGENT_DB_PATH", "data/agent.db")
+    video_provider_policy: str = os.getenv("VIDEO_PROVIDER_POLICY", "free_only")
+
 
     # Fila e Armazenamento
     queue_file_path: Path = BASE_DIR / os.getenv("QUEUE_FILE_PATH", "data/queue.json")

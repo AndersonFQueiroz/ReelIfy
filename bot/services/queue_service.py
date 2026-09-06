@@ -72,6 +72,11 @@ class Job:
     completed_at: Optional[str] = None
     output_video_path: Optional[str] = None
     error_details: Optional[str] = None
+    provider_id: str = "adb_youtube_create"
+    style_id: str = "product_demo"
+    media_source: str = "real_photo"
+    link_destination: str = "manual_copy"
+    agent_session_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -102,6 +107,11 @@ class Job:
             completed_at=data.get("completed_at"),
             output_video_path=data.get("output_video_path"),
             error_details=data.get("error_details"),
+            provider_id=data.get("provider_id", "adb_youtube_create"),
+            style_id=data.get("style_id", "product_demo"),
+            media_source=data.get("media_source", "real_photo"),
+            link_destination=data.get("link_destination", "manual_copy"),
+            agent_session_id=data.get("agent_session_id"),
         )
 
 
@@ -141,6 +151,11 @@ class QueueService:
         user_name: str,
         product: ProductData,
         script: ScriptData,
+        provider_id: str = "adb_youtube_create",
+        style_id: str = "product_demo",
+        media_source: str = "real_photo",
+        link_destination: str = "manual_copy",
+        agent_session_id: Optional[str] = None,
     ) -> Job:
         """Adiciona um novo pedido à fila com status PENDING."""
         with self._lock:
@@ -153,6 +168,11 @@ class QueueService:
                 script=script,
                 status=JobStatus.PENDING,
                 created_at=datetime.now(timezone.utc).isoformat(),
+                provider_id=provider_id,
+                style_id=style_id,
+                media_source=media_source,
+                link_destination=link_destination,
+                agent_session_id=agent_session_id,
             )
             jobs.append(new_job)
             self._write_all(jobs)

@@ -222,7 +222,7 @@ async def receive_audience(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "_(Ex: https://shopee.com.br/seu-link-de-afiliado)_\n\n"
         "💡 *Para que serve este link?*\n"
         "• O bot monta a legenda completa para você só copiar e postar junto com o vídeo.\n"
-        "• Ajuda a IA a criar a chamada final do roteiro (ex: 'link na bio').\n\n"
+        "• Ajuda a IA a criar a chamada final do roteiro (ex: 'link abaixo ou na descrição').\n\n"
         "👉 *É 100% opcional!* Se você não tiver o link em mãos agora ou preferir adicionar depois, "
         "basta digitar *pular*, *nenhum* ou enviar apenas um ponto `.`",
         parse_mode="Markdown",
@@ -235,7 +235,7 @@ async def receive_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     # Verifica se o usuário optou por pular o link
     if raw_text.lower() in ["pular", "skip", "nenhum", "nenhuma", ".", "-", "nao", "não", "sem link", "sem"]:
         context.user_data["affiliate_link"] = ""
-        link_feedback = "⏩ *Link de afiliado pulado!* (Usaremos 'link na bio' no roteiro)"
+        link_feedback = "⏩ *Link de afiliado pulado!* (Usaremos 'link abaixo ou na descrição' no roteiro)"
     else:
         context.user_data["affiliate_link"] = raw_text
         link_feedback = f"✅ *Link registrado:* `{raw_text}`"

@@ -4,12 +4,12 @@ Inicializa o bot, registra os handlers e inicia o pooling assíncrono.
 """
 import logging
 import sys
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
 from config.settings import settings
 from bot.handlers.start import start_command, help_command, liberate_command, authorize_command, revoke_command
 from bot.handlers.status import status_command
-from bot.handlers.order import order_conversation_handler, cancel_order
+from bot.handlers.agent import start_agent, cancel_agent, agent_text, agent_photo
 
 # Configuração de Logging Central
 logging.basicConfig(
@@ -58,8 +58,10 @@ def create_bot_app():
     app.add_handler(CommandHandler("revogar", revoke_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("pedidos", status_command))
-    app.add_handler(order_conversation_handler)
-    app.add_handler(CommandHandler("cancelar", cancel_order))
+    app.add_handler(CommandHandler("novo_video", start_agent))
+    app.add_handler(CommandHandler("cancelar", cancel_agent))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, agent_photo))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, agent_text))
     app.add_error_handler(error_handler)
 
     return app

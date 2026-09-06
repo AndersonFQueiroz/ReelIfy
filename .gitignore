@@ -28,3 +28,5 @@ data/logs/*
 .DS_Store
 Thumbs.db
 data/authorized_chat_ids.json
+data/agent.db
+data/agent.db-*

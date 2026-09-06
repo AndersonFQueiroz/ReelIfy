@@ -27,10 +27,11 @@
 
 | Recurso | Descrição |
 |:---|:---|
-| 🤖 **Bot Telegram** | Interface conversacional para solicitar vídeos a qualquer hora, de qualquer lugar |
-| 🧠 **Roteiros com IA** | Google Gemini gera roteiros persuasivos de 20s (Gancho → Problema → Solução → Prova Social → CTA) |
+| 🤖 **Agente Telegram** | Conversa livre para coletar briefing, mídia, estilo e destino do link |
+| 🧠 **Gemini com ferramentas** | O agente usa RAG, function calling e gera roteiros adaptados ao estilo solicitado |
 | 📱 **Automação ADB** | Controla o YouTube Create em um celular Android físico via comandos ADB |
-| 🔄 **Dois modos** | `/novo_video` (interativo com aprovação) ou `/auto` (enfileira direto) |
+| 🧠 **Memória RAG** | SQLite local com aprendizados agregados, correções e compactação periódica |
+| 🎨 **Estilos flexíveis** | POV, unboxing, antes/depois, demonstração, comparação e outros |
 | 📊 **Fila persistente** | Jobs organizados com status (Pendente → Processando → Concluído/Falhou) |
 | 🧪 **Modo Mock** | Teste o pipeline inteiro sem celular físico conectado |
 | 🔒 **Whitelist** | Controle de acesso por ID do Telegram |
@@ -89,10 +90,13 @@ ReelIfy/
 │   ├── main.py                # Ponto de entrada do Bot Telegram
 │   ├── handlers/
 │   │   ├── start.py           # Boas-vindas e verificação de whitelist
-│   │   ├── order.py           # Conversação guiada (/novo_video e /auto)
+│   │   ├── agent.py            # Conversa livre multimodal
 │   │   └── status.py          # Consulta de pedidos (/status)
 │   └── services/
-│       ├── gemini_service.py  # Geração de roteiro de 20s com Google Gemini
+│       ├── gemini_service.py  # Geração de roteiro contextual
+│       ├── agent_service.py   # Sessões, RAG e function calling
+│       ├── image_providers.py # Imagem IA opcional e fallback
+│       ├── video_providers.py # Registro de motores sem cobrança automática
 │       └── queue_service.py   # Gerenciamento atômico da fila de jobs
 ├── automation/
 │   ├── worker.py              # Polling e orquestração da automação
@@ -146,6 +150,9 @@ Edite o arquivo `.env` com suas chaves:
 |:---|:---|:---|
 | `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) no Telegram (`/newbot`) | Interface conversacional do bot 24/7 |
 | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | Motor de inteligência generativa e roteirização |
+| `GEMINI_IMAGE_MODEL` | Google AI Studio, opcional | Modelo de imagem; se ausente, usa placeholder gratuito |
+| `AGENT_DB_PATH` | Local | Banco SQLite do agente e RAG |
+| `VIDEO_PROVIDER_POLICY` | Local | `free_only` impede uso automático de provedores pagos |
 
 > **Dica:** Deixe `MOCK_DEVICE=True` para testar sem celular físico conectado.
 
@@ -166,6 +173,10 @@ python3 -m automation.worker
 ```
 
 > ⚠️ **O Worker só produzirá vídeos reais** quando o celular Android estiver conectado e `MOCK_DEVICE=False`. Em modo mock, o pipeline é simulado de ponta a ponta.
+
+### Conversa com o agente
+
+Depois de autorizado, envie qualquer mensagem comum para iniciar uma conversa. Você pode mandar produto, benefícios, público, link e fotos em qualquer ordem. O `/novo_video` reinicia a sessão atual. O agente pergunta o estilo, a mídia, o motor disponível e o destino do link.
 
 ---
 
@@ -188,6 +199,10 @@ python3 -m tools.reelify_dashboard --pedido ID_OU_PREFIXO
 ## 🧪 Testes
 
 Execute todos os testes automatizados (funciona sem hardware físico):
+
+- ✅ Conversa livre com texto e fotos em qualquer ordem
+- ✅ Correções e aprendizados agregados no RAG local
+- ✅ Seleção segura de estilo, mídia e provedor
 
 ```bash
 pytest tests/ -v

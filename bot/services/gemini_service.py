@@ -1,6 +1,6 @@
 """
-Serviço de Inteligência Artificial via Google Gemini API (100% Gratuito).
-Usa o SDK novo `google.genai` (google-genai) com o modelo gemini-flash-latest.
+Serviço de Inteligência Artificial via Google Gemini API.
+Usa o SDK `google.genai` (google-genai) com modelo configurável.
 Gera roteiros de alta conversão de exatamente 20 segundos para vídeos curtos para afiliados.
 """
 import json
@@ -11,6 +11,7 @@ from config.settings import settings
 from bot.services.queue_service import ScriptData
 
 logger = logging.getLogger(__name__)
+_UNSET = object()
 
 GEMINI_SYSTEM_INSTRUCTION = """
 Você é um copywriter de elite especializado em roteiros de alta conversão para vídeos curtos de 20 segundos (YouTube Shorts, Reels, TikTok) promovendo produtos afiliados.
@@ -24,7 +25,7 @@ REGRAS RÍGIDAS:
    - Problema (3-8s): A dor cotidiana que o produto resolve.
    - Solução (8-14s): O produto em ação e seu benefício principal.
    - Prova Social / Diferencial (14-17s): Por que confiar (avaliações, economia, praticidade).
-   - CTA (17-20s): Chamada direta para o link da bio/descrição.
+   - CTA (17-20s): Chamada direta para o link abaixo, descrição ou comentário fixado conforme o destino.
 4. USE O PÚBLICO-ALVO COM GRAMÁTICA NATURAL: o público informado não deve ser encaixado literalmente depois de "você faz parte de". Para "pais", use "pais sabem...", "para pais..." ou "se você é pai ou mãe...".
 5. Em regenerações, mude de verdade o gancho, a dor e a construção do texto. Não repita o roteiro anterior.
 
@@ -41,8 +42,8 @@ RETORNE EXCLUSIVAMENTE UM OBJETO JSON VÁLIDO com as seguintes chaves:
 
 
 class GeminiService:
-    def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
-        self.api_key = api_key or settings.gemini_api_key
+    def __init__(self, api_key: Optional[str] = _UNSET, model_name: Optional[str] = None):
+        self.api_key = settings.gemini_api_key if api_key is _UNSET else api_key
         self.model_name = model_name or settings.gemini_model
         self._client = None
         self._init_client()
@@ -69,12 +70,14 @@ class GeminiService:
         affiliate_link: str,
         photos_count: int = 1,
         variation_index: int = 0,
+        style: str = "product_demo",
+        link_destination: str = "manual_copy",
     ) -> ScriptData:
         """
         Gera um roteiro estruturado de 20s a partir dos dados do produto.
         Caso a API não esteja configurada ou ocorra falha, gera um roteiro fallback.
         """
-        affiliate_info = affiliate_link.strip() if affiliate_link else "Link na bio ou primeiro comentário fixado"
+        affiliate_info = affiliate_link.strip() if affiliate_link else "Sem link informado"
         angles_note = f"- Mídia Visual: O vídeo contará com {photos_count} fotos alternando ângulos e detalhes na linha do tempo.\n" if photos_count > 1 else ""
         angles = ("praticidade no dia a dia", "tempo de qualidade com a família", "conforto e facilidade de uso", "economia e custo-benefício", "um problema cotidiano inesperado")
         angle = angles[variation_index % len(angles)]
@@ -86,6 +89,8 @@ class GeminiService:
             f"- Público-Alvo: {target_audience}\n"
             f"- Ângulo obrigatório desta versão: {angle}\n"
             f"- Número da versão: {variation_index + 1}. Esta versão precisa ser diferente das anteriores, se houver.\n"
+            f"- Estilo solicitado: {style}. Adapte a estrutura ao estilo; não force Gancho/Problema/Solução/Prova Social/CTA quando não combinar.\n"
+            f"- Destino do link: {link_destination}. Prefira link abaixo, descrição ou comentário fixado conforme o destino.\n"
             f"{angles_note}"
             f"- Link de Afiliado (para o CTA): {affiliate_info}\n"
         )
@@ -156,7 +161,7 @@ class GeminiService:
         hook = hooks[variation_index % len(hooks)]
         solution = f"Com {product_name}, você tem {description} em poucos minutos e sem complicações."
         proof = f"Uma escolha prática para quem busca mais facilidade no dia a dia com {product_name}."
-        cta = "Aproveite a promoção exclusiva no link da bio antes que o estoque acabe!"
+        cta = "Aproveite a promoção exclusiva; acesse o link abaixo ou na descrição antes que o estoque acabe!"
         full_text = f"{hook} {problem} {solution} {proof} {cta}"
 
         return ScriptData(

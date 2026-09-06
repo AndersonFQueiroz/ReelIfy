@@ -12,6 +12,7 @@ from typing import Optional
 import aiohttp
 
 from config.settings import settings
+from telegram.helpers import escape_markdown
 from bot.services.queue_service import queue_service, Job, JobStatus
 from automation.adb.device import get_device
 
@@ -24,6 +25,9 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("automation.worker")
+def _md(value: object) -> str:
+    return escape_markdown(str(value), version=1)
+
 
 
 class HardwareNotAvailableError(Exception):
@@ -101,12 +105,12 @@ class VideoAutomationWorker:
 
     def process_job(self, job: Job) -> bool:
         """Executa o ciclo completo de automação para um pedido."""
-        logger.info(f"==> Iniciando processamento do Job {job.job_id} ({job.product.name})")
+        logger.info(f"==> Iniciando processamento do Job {job.job_id} ({_md(job.product.name)})")
 
         photos_to_send = job.product.photos_local_paths or ([job.product.photo_local_path] if job.product.photo_local_path else [])
         remote_photo_paths = [
-            f"{self.remote_temp_dir}product_photo_{i + 1}.jpg"
-            for i in range(len(photos_to_send))
+            f"{self.remote_temp_dir}product_photo_{i + 1}{Path(local_p).suffix or '.jpg'}"
+            for i, local_p in enumerate(photos_to_send)
         ]
         remote_video_path = f"/sdcard/Movies/YouTubeCreate/final_{job.job_id[:8]}.mp4"
         local_video_output = settings.media_outputs_dir / f"video_{job.job_id[:8]}.mp4"
@@ -228,15 +232,17 @@ class VideoAutomationWorker:
         if success:
             local_video = Path(job.output_video_path) if job.output_video_path else None
             affiliate_text = (
-                f"🔗 *Link de Afiliado:* {job.product.affiliate_link}\n\n"
+                f"🔗 *Link de Afiliado:* {_md(job.product.affiliate_link)}\n\n"
                 if job.product.affiliate_link
-                else "🔗 *Link de Afiliado:* (Não informado — use seu link na bio!)\n\n"
+                else "🔗 *Link de Afiliado:* não informado. Você pode adicionar um link depois.\n\n"
             )
             caption = (
                 f"🎉 *Seu vídeo de 20s está pronto!*\n\n"
-                f"📦 *Produto:* {job.product.name}\n"
+                f"📦 *Produto:* {_md(job.product.name)}\n"
+                f"🎨 *Estilo:* {_md(job.style_id)}\n"
+                f"⚙️ *Motor:* {_md(job.provider_id)}\n"
                 f"{affiliate_text}"
-                f"📝 *Roteiro Usado:*\n_{job.script.full_text}_\n\n"
+                f"📝 *Roteiro Usado:*\n_{_md(job.script.full_text)}_\n\n"
                 f"🚀 Prontinho para postar no YouTube Shorts, Reels e TikTok!"
             )
             if local_video and local_video.exists():
@@ -248,8 +254,8 @@ class VideoAutomationWorker:
             )
             if is_hw_missing:
                 alert = (
-                    f"📝 *Roteiro Pronto para:* *{job.product.name}*\n\n"
-                    f"_{job.script.full_text}_\n\n"
+                    f"📝 *Roteiro Pronto para:* *{_md(job.product.name)}*\n\n"
+                    f"_{_md(job.script.full_text)}_\n\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"ℹ️ *Aviso sobre a Produção do Vídeo:*\n"
                     f"O notebook 24/7 e o celular slave ainda não estão conectados ao sistema.\n"
@@ -261,8 +267,8 @@ class VideoAutomationWorker:
                 )
             else:
                 alert = (
-                    f"⚠️ *Atenção:* Ocorreu um problema ao produzir o vídeo do produto *{job.product.name}* no celular.\n\n"
-                    f"🔍 *Detalhe técnico:* _{job.error_details}_\n\n"
+                    f"⚠️ *Atenção:* Ocorreu um problema ao produzir o vídeo do produto *{_md(job.product.name)}* no celular.\n\n"
+                    f"🔍 *Detalhe técnico:* _{_md(job.error_details)}_\n\n"
                     f"O suporte foi alertado. Você pode tentar novamente com `/novo_video`."
                 )
             await self.send_telegram_alert(job.chat_id, alert)
