@@ -66,7 +66,7 @@ async def liberate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     _grant_access(update.effective_chat.id)
     await update.message.reply_text(
         "✅ *Acesso liberado permanentemente!*\n\n"
-        "Agora você já pode criar vídeos pelo Reelify.\n\n"
+        "Agora você já pode criar vídeos pelo Click Shop Oficial 🌻.\n\n"
         "📌 *Comandos principais:*\n"
         "• `/novo_video` — cria um pedido com revisão e aprovação do roteiro.\n"
         "• `/auto` — cria e envia o pedido para a fila automaticamente.\n"
