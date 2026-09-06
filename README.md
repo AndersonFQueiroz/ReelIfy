@@ -1,14 +1,16 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # 🎬 ReelIfy
 
 **Transforme produtos em vídeos virais — automaticamente.**
 
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
-[![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-AI-4285F4?logo=google&logoColor=white)](https://aistudio.google.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Custo](https://img.shields.io/badge/Custo-R%24%200%2C00-brightgreen)]()
+<p align="center">
+  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+"></a>
+  <a href="https://core.telegram.org/bots"><img src="https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white" alt="Telegram Bot"></a>
+  <a href="https://aistudio.google.com"><img src="https://img.shields.io/badge/Google%20Gemini-AI-4285F4?logo=google&logoColor=white" alt="Google Gemini"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+  <a href="#-custo-total-r-000"><img src="https://img.shields.io/badge/Custo-R%24%200%2C00-brightgreen" alt="Custo: R$ 0,00"></a>
+</p>
 
 </div>
 
@@ -274,4 +276,4 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 *Transformando afiliados em criadores de conteúdo — sem esforço.*
 
 </div>
-]]>
+
