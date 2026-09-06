@@ -169,6 +169,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Exibe instruções de uso do robô."""
     chat_id = update.effective_chat.id
     if not is_user_authorized(chat_id):
+        await update.message.reply_text(
+            "⛔ Você não possui autorização para usar este bot.\n"
+            f"Seu ID do Telegram é: `{chat_id}`\n\n"
+            "Se você recebeu a palavra mágica, use `/liberar SUA_SENHA`.",
+            parse_mode="Markdown",
+        )
         return
 
     await update.message.reply_text(

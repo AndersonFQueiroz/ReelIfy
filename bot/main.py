@@ -9,7 +9,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler
 from config.settings import settings
 from bot.handlers.start import start_command, help_command, liberate_command, authorize_command, revoke_command
 from bot.handlers.status import status_command
-from bot.handlers.order import order_conversation_handler
+from bot.handlers.order import order_conversation_handler, cancel_order
 
 # Configuração de Logging Central
 logging.basicConfig(
@@ -59,6 +59,7 @@ def create_bot_app():
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("pedidos", status_command))
     app.add_handler(order_conversation_handler)
+    app.add_handler(CommandHandler("cancelar", cancel_order))
     app.add_error_handler(error_handler)
 
     return app
