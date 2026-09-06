@@ -169,6 +169,22 @@ python3 -m automation.worker
 
 ---
 
+## Dashboard de operacao
+
+Para abrir o painel completo no terminal:
+
+```bash
+python3 -m tools.reelify_dashboard
+```
+
+O menu permite listar e filtrar pedidos, abrir detalhes por ID, consultar roteiros e arquivos, ver usuarios e IDs, autorizar, revogar, consultar logs e limpar pedidos expirados. Para consultas diretas:
+
+```bash
+python3 -m tools.reelify_dashboard --once
+python3 -m tools.reelify_dashboard --status PENDING
+python3 -m tools.reelify_dashboard --pedido ID_OU_PREFIXO
+```
+
 ## 🧪 Testes
 
 Execute todos os testes automatizados (funciona sem hardware físico):

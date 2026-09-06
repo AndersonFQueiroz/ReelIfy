@@ -228,6 +228,11 @@ class QueueService:
                     return job
             return None
 
+    def get_all_jobs(self) -> List[Job]:
+        """Retorna todos os pedidos para ferramentas de operação e auditoria."""
+        with self._lock:
+            return self._read_all()
+
     def get_jobs_by_chat_id(self, chat_id: int) -> List[Job]:
         """Retorna todos os pedidos de um determinado usuário."""
         self.cleanup_expired_jobs(max_age_hours=24)
