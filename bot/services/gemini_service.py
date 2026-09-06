@@ -72,6 +72,7 @@ class GeminiService:
         variation_index: int = 0,
         style: str = "product_demo",
         link_destination: str = "manual_copy",
+        correction: str = "",
     ) -> ScriptData:
         """
         Gera um roteiro estruturado de 20s a partir dos dados do produto.
@@ -91,6 +92,7 @@ class GeminiService:
             f"- Número da versão: {variation_index + 1}. Esta versão precisa ser diferente das anteriores, se houver.\n"
             f"- Estilo solicitado: {style}. Adapte a estrutura ao estilo; não force Gancho/Problema/Solução/Prova Social/CTA quando não combinar.\n"
             f"- Destino do link: {link_destination}. Prefira link abaixo, descrição ou comentário fixado conforme o destino.\n"
+            f"- Correção obrigatória desta versão: {correction or 'nenhuma'}\n"
             f"{angles_note}"
             f"- Link de Afiliado (para o CTA): {affiliate_info}\n"
         )

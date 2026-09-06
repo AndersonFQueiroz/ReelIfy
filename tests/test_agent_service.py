@@ -37,13 +37,12 @@ def test_free_conversation_creates_job_with_style_and_placeholder(tmp_path, monk
         chat_id = 321
         for message in (
             "Quero divulgar uma churrasqueira",
+            "POV",
+            "descrição do YouTube",
+            "sem link",
             "Prepara carnes com praticidade",
             "Para pais",
-            "sem link",
             "usar placeholder",
-            "POV",
-            "YouTube Create no celular",
-            "descrição do YouTube",
         ):
             await service.handle_message(chat_id, message)
         reply = await service.handle_message(chat_id, "sim")
@@ -56,3 +55,29 @@ def test_free_conversation_creates_job_with_style_and_placeholder(tmp_path, monk
     assert reply.job.media_source == "placeholder"
     assert Path(reply.job.product.photo_local_path).exists()
 
+
+def test_preview_requires_approval_and_learns_correction(tmp_path, monkeypatch):
+    async def fake_script(**kwargs):
+        return ScriptData("Gancho", "Problema", "Solução", "Prova", "Veja abaixo", "Texto completo para copiar")
+
+    queue = QueueService(tmp_path / "queue.json")
+    monkeypatch.setattr(agent_module, "queue_service", queue)
+    monkeypatch.setattr(settings, "mock_device", True)
+    monkeypatch.setattr(gemini_service, "_client", None)
+    monkeypatch.setattr(gemini_service, "generate_script", fake_script)
+
+    async def run():
+        service = AgentService(tmp_path / "agent.db")
+        await service.handle_message(999, "Vídeo sobre uma cafeteira")
+        preview = await service.handle_message(999, "Faz café rápido")
+        assert preview.awaiting_approval is True
+        assert preview.job is None
+        assert "Texto completo para copiar" in preview.text
+        corrected = await service.handle_message(999, "deixe o roteiro mais natural")
+        assert corrected.awaiting_approval is True
+        approved = await service.handle_message(999, "aprovar")
+        return service, approved
+
+    service, reply = asyncio.run(run())
+    assert reply.job is not None
+    assert service.retrieve("roteiros naturais")

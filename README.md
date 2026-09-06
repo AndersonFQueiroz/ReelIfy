@@ -176,7 +176,7 @@ python3 -m automation.worker
 
 ### Conversa com o agente
 
-Depois de autorizado, envie qualquer mensagem comum para iniciar uma conversa. Você pode mandar produto, benefícios, público, link e fotos em qualquer ordem. O `/novo_video` reinicia a sessão atual. O agente pergunta o estilo, a mídia, o motor disponível e o destino do link.
+Depois de autorizado, envie qualquer mensagem comum para iniciar uma conversa. Você pode mandar produto, benefícios, público, link e fotos em qualquer ordem. O `/novo_video` reinicia a sessão atual. O agente infere escolhas opcionais seguras, pergunta apenas o necessário e mostra o roteiro completo para copiar, corrigir, regenerar ou aprovar antes de criar o job.
 
 ---
 
@@ -308,4 +308,3 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 *Transformando afiliados em criadores de conteúdo — sem esforço.*
 
 </div>
-

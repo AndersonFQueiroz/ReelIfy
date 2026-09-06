@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from telegram import Update, ReplyKeyboardRemove
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
 
 from config.settings import settings
@@ -12,6 +12,26 @@ from bot.handlers.start import is_user_authorized
 from bot.services.agent_service import agent_service
 
 logger = logging.getLogger(__name__)
+
+
+def _review_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Aprovar e colocar na fila", callback_data="agent:approve"),
+        ],
+        [
+            InlineKeyboardButton("✏️ Corrigir escrevendo", callback_data="agent:edit"),
+            InlineKeyboardButton("🔄 Regenerar", callback_data="agent:regenerate"),
+        ],
+        [InlineKeyboardButton("❌ Cancelar", callback_data="agent:cancel")],
+    ])
+
+
+async def _send_agent_reply(message, reply) -> None:
+    await message.reply_text(
+        reply.text,
+        reply_markup=_review_keyboard() if reply.awaiting_approval else None,
+    )
 
 
 def _denied_text(chat_id: int) -> str:
@@ -53,7 +73,7 @@ async def agent_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.message.reply_text(_denied_text(chat_id), parse_mode="Markdown")
         return
     reply = await agent_service.handle_message(chat_id, update.message.text)
-    await update.message.reply_text(reply.text)
+    await _send_agent_reply(update.message, reply)
 
 
 async def agent_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -70,7 +90,39 @@ async def agent_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         local_path = settings.media_inputs_dir / f"agent_{uuid.uuid4().hex[:10]}.jpg"
         await telegram_file.download_to_drive(custom_path=local_path)
         reply = await agent_service.handle_message(chat_id, "Enviei uma foto real do produto.", str(local_path))
-        await update.message.reply_text(reply.text)
+        await _send_agent_reply(update.message, reply)
     except Exception:
         logger.exception("Falha ao receber mídia na conversa do agente.")
         await update.message.reply_text("❌ Não consegui baixar essa imagem. Tente enviá-la novamente.")
+
+
+async def agent_review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Processa as ações da prévia sem permitir enfileiramento acidental."""
+    query = update.callback_query
+    await query.answer()
+    chat_id = query.message.chat_id
+    if not is_user_authorized(chat_id):
+        await query.edit_message_text(_denied_text(chat_id), parse_mode="Markdown")
+        return
+
+    action = query.data.split(":", 1)[-1]
+    if action == "approve":
+        reply = await agent_service.approve(chat_id)
+        # Mantém a prévia integral no histórico para cópia; apenas remove os
+        # botões e envia a confirmação em uma nova mensagem.
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(reply.text)
+    elif action == "regenerate":
+        reply = await agent_service.regenerate(chat_id)
+        await query.edit_message_text(
+            reply.text,
+            reply_markup=_review_keyboard() if reply.awaiting_approval else None,
+        )
+    elif action == "edit":
+        await query.edit_message_text(
+            "✏️ Escreva agora, em uma mensagem, o que você quer mudar no roteiro. "
+            "Exemplo: “troque o público para pais e deixe o gancho mais natural”."
+        )
+    elif action == "cancel":
+        agent_service.cancel_session(chat_id)
+        await query.edit_message_text("🚫 Pedido cancelado. Quando quiser, use /novo_video novamente.")

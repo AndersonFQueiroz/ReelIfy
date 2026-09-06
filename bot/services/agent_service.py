@@ -6,6 +6,7 @@ controle desta aplicação, nunca sob controle direto do modelo.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -53,6 +54,8 @@ class AgentReply:
     text: str
     job: Optional[Job] = None
     generated_image_path: Optional[str] = None
+    script: Optional[ScriptData] = None
+    awaiting_approval: bool = False
 
 
 class AgentService:
@@ -215,9 +218,20 @@ class AgentService:
             db.execute("DELETE FROM rag_documents WHERE id=?", (row[0],))
 
     def _learn_from_session(self, db: sqlite3.Connection, history: list[dict[str, str]], brief: dict[str, Any], outcome: str) -> None:
-        corrections = [m["text"] for m in history if m.get("role") == "user" and any(word in m["text"].lower() for word in ("corrija", "não é", "nao e", "prefiro", "mude", "troque"))]
-        if corrections:
-            self._add_learning(db, "Usuários corrigem o agente e demonstram preferência por: " + " | ".join(corrections[:2]), "user_correction")
+        corrections = [m["text"] for m in history if m.get("role") == "user" and any(word in m["text"].lower() for word in ("corrija", "não é", "nao e", "prefiro", "mude", "troque", "mais natural", "robótico", "robotico", "mais curto"))]
+        for correction in corrections[:3]:
+            lowered = correction.lower()
+            if any(word in lowered for word in ("natural", "robótico", "robotico")):
+                learning = "Usuários preferem roteiros naturais, conversados e sem frases artificiais ou genéricas."
+            elif "mais curto" in lowered or "resum" in lowered:
+                learning = "Quando solicitado, reduzir o roteiro mantendo benefício concreto e CTA claro."
+            elif "público" in lowered or "publico" in lowered:
+                learning = "Correções de público devem substituir o público anterior em todas as frases do roteiro."
+            elif "cta" in lowered or "link" in lowered:
+                learning = "Correções de CTA devem respeitar o destino escolhido e evitar link na bio como padrão."
+            else:
+                learning = "Usuários podem corrigir o roteiro livremente; aplicar a correção na próxima versão antes de enfileirar."
+            self._add_learning(db, learning, "user_correction")
         if brief.get("link_destination") in {"youtube_description", "youtube_comment"}:
             self._add_learning(db, "Para publicação no YouTube, preparar o link em bloco copiável para descrição ou comentário fixado.", "link")
         if outcome in {"completed", "failed"} and brief.get("style"):
@@ -237,6 +251,11 @@ class AgentService:
     @staticmethod
     def _is_yes(text: str) -> bool:
         return text.lower().strip() in {"sim", "s", "ok", "pode", "confirmo", "confirmar", "aprovar", "aprovado", "vamos"}
+
+    @staticmethod
+    def _is_regenerate(text: str) -> bool:
+        lowered = text.lower().strip()
+        return any(value in lowered for value in ("regenerar", "gerar de novo", "fazer outro", "outra versão", "outra versao"))
 
     @staticmethod
     def _is_no_photo(text: str) -> bool:
@@ -260,7 +279,7 @@ class AgentService:
         elif "local" in lowered:
             brief["provider_id"] = "local_ffmpeg"
         if self._is_no_photo(clean):
-            brief["media_source"] = "pending_choice"
+            brief["media_source"] = "placeholder"
         if lowered in {"gerar imagem", "imagem ia", "gerar uma imagem", "quero imagem de ia"} or "imagem gerada" in lowered:
             brief["media_source"] = "generated"
         elif "placeholder" in lowered or "ilustra" in lowered:
@@ -272,35 +291,66 @@ class AgentService:
         elif any(token in lowered for token in ("sem link", "não tenho link", "nao tenho link", "sem afiliado")):
             brief["affiliate_link"] = ""
             brief["link_declined"] = True
+        # Extrações simples para quando a API estiver indisponível. Elas evitam
+        # transformar uma mensagem inteira em nome do produto.
+        product_match = re.search(
+            r"(?:produto\s*:\s*|produto\s+|vídeo\s+(?:sobre|de)\s+|video\s+(?:sobre|de)\s+|(?:quero|vou)\s+(?:divulgar|promover|vender)\s+)(?:uma?\s+|o\s+|a\s+)?(.+?)(?=\s+(?:para|com|que)\s+|$)",
+            clean,
+            re.IGNORECASE,
+        )
+        audience_match = re.search(r"\bpara\s+([^,.!?]+)", clean, re.IGNORECASE)
+        benefits_match = re.search(r"(?:benefícios?|beneficios?|diferenciais?)\s*:\s*(.+)$", clean, re.IGNORECASE)
+        if product_match and not brief.get("product_name"):
+            brief["product_name"] = product_match.group(1).strip()
+        if audience_match and not brief.get("target_audience"):
+            brief["target_audience"] = audience_match.group(1).strip()
+        if benefits_match and not brief.get("benefits"):
+            brief["benefits"] = benefits_match.group(1).strip()
+
         # Coleta livre de fallback quando o modelo não estiver disponível.
         if not brief.get("product_name"):
-            brief["product_name"] = clean[:160]
+            if clean and not self._is_yes(clean) and not self._is_regenerate(clean):
+                brief["product_name"] = clean[:160]
         elif not brief.get("benefits"):
-            brief["benefits"] = clean[:500]
-        elif not brief.get("target_audience"):
-            brief["target_audience"] = clean[:240]
+            control_message = (
+                self._is_yes(clean)
+                or self._is_regenerate(clean)
+                or self._is_no_photo(clean)
+                or style
+                or clean.startswith(("http://", "https://"))
+                or any(token in lowered for token in ("sem link", "não tenho link", "nao tenho link", "placeholder", "imagem ia"))
+            )
+            if benefits_match:
+                brief["benefits"] = benefits_match.group(1).strip()[:500]
+            elif not control_message and not product_match:
+                brief["benefits"] = clean[:500]
+
+    def _apply_defaults(self, brief: dict[str, Any]) -> None:
+        """Preenche escolhas seguras que não precisam virar perguntas."""
+        brief.setdefault("style", "product_demo")
+        brief.setdefault("link_destination", "manual_copy")
+        if brief.get("product_name") and brief.get("benefits") and not brief.get("target_audience"):
+            brief["target_audience"] = "pessoas interessadas no produto"
+        if brief.get("product_name") and brief.get("benefits") and not brief.get("media_paths") and not brief.get("media_source"):
+            # A foto é opcional; o usuário pode substituí-la enviando uma imagem
+            # depois. Assim, não bloqueamos a conversa com uma escolha técnica.
+            brief["media_source"] = "placeholder"
+        if not brief.get("provider_id"):
+            providers = provider_names()
+            if len(providers) == 1:
+                brief["provider_id"] = next(iter(providers))
 
     def _missing_question(self, brief: dict[str, Any]) -> Optional[str]:
         if not brief.get("product_name"):
             return "Que produto você quer transformar em vídeo? Pode me contar do seu jeito."
         if not brief.get("benefits"):
             return f"Entendi: {brief['product_name']}. Quais são os principais benefícios ou diferenciais dele?"
-        if not brief.get("target_audience"):
-            return "Para quem esse produto é mais indicado? Por exemplo: pais, gamers, quem mora sozinho ou outro público."
-        if "affiliate_link" not in brief and not brief.get("link_declined"):
-            return "Você tem um link de afiliado para incluir? Pode enviar o link ou dizer sem link para continuar."
         if brief.get("media_source") in {None, "pending_choice"}:
             return "Você pode enviar uma foto do produto ou escolher: gerar imagem, usar placeholder ou continuar sem foto."
-        if not brief.get("style"):
-            return "Qual estilo combina melhor: POV, unboxing, antes e depois, demonstração, comparativo ou outro?"
         if not brief.get("provider_id") or not is_provider_available(brief.get("provider_id", "")):
             names = provider_names()
             options = " ou ".join(name for name in names.values()) or "nenhum motor está disponível agora"
             return f"Qual motor você prefere: {options}? Vou mostrar apenas os que estiverem disponíveis."
-        if not brief.get("link_destination"):
-            return "Onde você pretende publicar? Posso preparar para descrição do YouTube, comentário fixado ou apenas deixar o link para copiar."
-        if not brief.get("confirmed"):
-            return "Já tenho o briefing. Posso gerar o roteiro e colocar o pedido na fila?"
         return None
 
     def _fallback_reply(self, brief: dict[str, Any], text: str) -> str:
@@ -323,7 +373,8 @@ class AgentService:
         rag_text = "\n- ".join(rag)
         style_text = json.dumps(STYLE_TEMPLATES, ensure_ascii=False)
         system = (
-            "Você é o atendente natural do Reelify. Converse em português brasileiro. "
+            "Você é o atendente natural deste bot. Nunca invente ou repita um nome de marca; "
+            "use a identidade que aparecer na mensagem do Telegram. Converse em português brasileiro. "
             "Não repita formulário nem faça várias perguntas de uma vez. Use o RAG abaixo. "
             "Nunca invente dados. Use update_brief ao extrair informações. Só chame finalize_video_request "
             "quando o usuário confirmar e o briefing estiver completo.\n\n"
@@ -351,19 +402,103 @@ class AgentService:
             logger.exception("Falha na conversa com Gemini; usando orquestração local.")
             return "", []
 
-    async def _finalize(self, chat_id: int, brief: dict[str, Any], history: list[dict[str, str]]) -> AgentReply:
+    @staticmethod
+    def _script_to_dict(script: ScriptData) -> dict[str, str]:
+        return {
+            "hook": script.hook,
+            "problem": script.problem,
+            "solution": script.solution,
+            "proof": script.proof,
+            "cta": script.cta,
+            "full_text": script.full_text,
+        }
+
+    @staticmethod
+    def _script_from_dict(data: dict[str, Any]) -> ScriptData:
+        return ScriptData(
+            hook=str(data.get("hook", "")),
+            problem=str(data.get("problem", "")),
+            solution=str(data.get("solution", "")),
+            proof=str(data.get("proof", "")),
+            cta=str(data.get("cta", "")),
+            full_text=str(data.get("full_text", "")),
+        )
+
+    def _preview_text(self, brief: dict[str, Any], script: ScriptData) -> str:
+        style_name = STYLE_TEMPLATES.get(brief.get("style", "product_demo"), brief.get("style", "product_demo"))
+        media_name = {
+            "real_photo": "foto real enviada",
+            "generated_placeholder": "imagem de IA/placeholder (ainda não configurada)",
+            "placeholder": "placeholder visual",
+        }.get(brief.get("media_source", ""), "mídia escolhida")
+        return (
+            f"🎬 Prévia do roteiro para {brief.get('product_name', 'seu produto')}\n\n"
+            f"Estilo: {style_name}\n"
+            f"Visual: {media_name}\n\n"
+            f"🪝 Gancho (0–3s):\n{script.hook}\n\n"
+            f"⚠️ Problema (3–8s):\n{script.problem}\n\n"
+            f"💡 Solução (8–14s):\n{script.solution}\n\n"
+            f"⭐ Diferencial (14–17s):\n{script.proof}\n\n"
+            f"👉 CTA (17–20s):\n{script.cta}\n\n"
+            "🗣 Texto completo para copiar:\n"
+            f"{script.full_text}\n\n"
+            "Revise com calma. Você pode aprovar, pedir uma correção escrevendo o que mudar, "
+            "ou tocar em regenerar. O pedido só entra na fila depois da aprovação."
+        )
+
+    async def _generate_preview(self, chat_id: int, brief: dict[str, Any], history: list[dict[str, str]]) -> AgentReply:
         style = brief.get("style", "product_demo")
-        link = brief.get("affiliate_link", "")
         script = await gemini_service.generate_script(
             product_name=brief["product_name"],
             description=brief.get("benefits", ""),
             target_audience=brief.get("target_audience", "pessoas interessadas no produto"),
-            affiliate_link=link,
+            affiliate_link=brief.get("affiliate_link", ""),
             photos_count=len(brief.get("media_paths", [])) or 1,
-            variation_index=0,
+            variation_index=int(brief.get("variation_index", 0)),
             style=style,
             link_destination=brief.get("link_destination", "manual_copy"),
+            correction=brief.get("last_correction", ""),
         )
+        brief["script"] = self._script_to_dict(script)
+        brief["awaiting_approval"] = True
+        preview = self._preview_text(brief, script)
+        history.append({"role": "assistant", "text": preview})
+        self._save_session(chat_id, brief, history, "WAITING_APPROVAL")
+        return AgentReply(text=preview, script=script, awaiting_approval=True)
+
+    async def approve(self, chat_id: int) -> AgentReply:
+        brief, history, state = self._get_session(chat_id)
+        if state != "WAITING_APPROVAL" or not brief.get("script"):
+            return AgentReply("Não encontrei uma prévia aguardando aprovação. Use /novo_video para começar.")
+        brief["awaiting_approval"] = False
+        return await self._finalize(chat_id, brief, history)
+
+    async def regenerate(self, chat_id: int) -> AgentReply:
+        brief, history, state = self._get_session(chat_id)
+        if state != "WAITING_APPROVAL" or not brief.get("script"):
+            return AgentReply("Ainda não há um roteiro para regenerar. Use /novo_video para começar.")
+        brief["awaiting_approval"] = False
+        brief["variation_index"] = int(brief.get("variation_index", 0)) + 1
+        return await self._generate_preview(chat_id, brief, history)
+
+    def _apply_correction(self, brief: dict[str, Any], text: str) -> None:
+        """Aplica correções óbvias imediatamente e deixa o restante no prompt."""
+        lowered = text.lower()
+        style = self._style_from_text(text)
+        if style:
+            brief["style"] = style
+        audience_match = re.search(r"(?:público|publico|para)\s*[:\-]?\s*(.+?)(?:\.|$)", text, re.IGNORECASE)
+        if audience_match and "estilo" not in lowered:
+            brief["target_audience"] = audience_match.group(1).strip()
+        benefits_match = re.search(r"(?:benefícios?|beneficios?|diferenciais?)\s*[:\-]?\s*(.+)$", text, re.IGNORECASE)
+        if benefits_match:
+            brief["benefits"] = benefits_match.group(1).strip()
+        brief["last_correction"] = text
+
+    async def _finalize(self, chat_id: int, brief: dict[str, Any], history: list[dict[str, str]]) -> AgentReply:
+        style = brief.get("style", "product_demo")
+        link = brief.get("affiliate_link", "")
+        script = self._script_from_dict(brief["script"])
         product = ProductData(
             name=brief["product_name"],
             description=brief.get("benefits", ""),
@@ -389,24 +524,43 @@ class AgentService:
         return AgentReply(
             text=(f"✅ Entendi tudo sobre {brief['product_name']}.\n\n"
                   f"Escolhi o estilo {style} e o motor {PROVIDER_LABELS.get(job.provider_id, job.provider_id)}.\n"
-                  f"Seu pedido {job.job_id[:8]} entrou na fila. Vou te avisar aqui quando o vídeo estiver pronto."),
+                  f"Seu pedido {job.job_id[:8]} entrou na fila. Vou te avisar aqui quando o vídeo estiver pronto.\n\n"
+                  "🗣 O roteiro completo continua acima para você copiar quando quiser."),
             job=job,
+            script=script,
         )
 
     async def handle_message(self, chat_id: int, text: str, media_path: Optional[str] = None) -> AgentReply:
-        brief, history, _ = self._get_session(chat_id)
+        brief, history, state = self._get_session(chat_id)
         text = text.strip()
         history.append({"role": "user", "text": text})
+
+        # Depois da prévia, qualquer texto vira correção/regeneração; nunca
+        # volta a abrir um formulário nem cria pedido sem aprovação explícita.
+        if state == "WAITING_APPROVAL" and not media_path:
+            if self._is_yes(text):
+                return await self.approve(chat_id)
+            if self._is_regenerate(text):
+                brief["awaiting_approval"] = False
+                brief["variation_index"] = int(brief.get("variation_index", 0)) + 1
+                return await self._generate_preview(chat_id, brief, history)
+            self._apply_correction(brief, text)
+            brief["awaiting_approval"] = False
+            brief["variation_index"] = int(brief.get("variation_index", 0)) + 1
+            return await self._generate_preview(chat_id, brief, history)
+
         if media_path:
             brief.setdefault("media_paths", []).append(media_path)
             brief["media_source"] = "real_photo"
-        self._infer_brief(brief, text)
-        if self._is_yes(text) and self._missing_question({**brief, "confirmed": True}) is None:
-            brief["confirmed"] = True
-        if any(word in text.lower() for word in ("corrija", "mude", "troque", "não é", "nao e", "prefiro")):
-            brief["last_correction"] = text
+
         rag = self.retrieve(text + " " + json.dumps(brief, ensure_ascii=False))
-        model_text, calls = await self._gemini_turn(brief, history, text, rag)
+        try:
+            model_text, calls = await asyncio.wait_for(
+                self._gemini_turn(brief, history, text, rag), timeout=12
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Gemini excedeu o limite de 12s na conversa; usando fallback local.")
+            model_text, calls = "", []
         for call in calls:
             name, args = call["name"], call["args"]
             if name == "update_brief":
@@ -421,8 +575,10 @@ class AgentService:
                     brief["provider_id"] = provider_id
             elif name == "record_user_correction":
                 brief["last_correction"] = str(args.get("correction", ""))
-            elif name == "finalize_video_request" and args.get("confirmed") is True:
-                brief["confirmed"] = True
+
+        # O parser local só completa o que o Gemini não conseguiu extrair.
+        self._infer_brief(brief, text)
+        self._apply_defaults(brief)
         if brief.get("media_source") in {"generated", "placeholder"} and not brief.get("media_paths"):
             image_path = None
             if brief.get("media_source") == "generated":
@@ -439,8 +595,9 @@ class AgentService:
             brief.setdefault("media_paths", []).append(self._create_placeholder(brief.get("product_name", "produto")))
         if brief.get("provider_id") and not is_provider_available(brief["provider_id"]):
             brief.pop("provider_id", None)
-        if brief.get("confirmed") and self._missing_question(brief) is None:
-            return await self._finalize(chat_id, brief, history)
+        self._apply_defaults(brief)
+        if self._missing_question(brief) is None:
+            return await self._generate_preview(chat_id, brief, history)
         reply = model_text or self._fallback_reply(brief, text)
         history.append({"role": "assistant", "text": reply})
         self._save_session(chat_id, brief, history)
