@@ -34,7 +34,7 @@ Quando Gemini falha, fica sem chave ou excede o timeout conversacional, o fallba
 | `bot/services/gemini_service.py` | Geração estruturada do roteiro e fallback local |
 | `bot/services/queue_service.py` | Persistência e estados dos jobs em JSON |
 | `bot/services/image_providers.py` | Imagem Gemini opcional e fallback placeholder |
-| `bot/services/video_providers.py` | Registro de disponibilidade dos motores |
+| `bot/services/video_providers.py` | Registro do motor YouTube Create via ADB |
 | `automation/worker.py` | Processamento ADB/mock e entrega do MP4 |
 | `tools/reelify_dashboard.py` | Dashboard de terminal para fila, acessos e logs |
 
@@ -54,7 +54,7 @@ Não guardar tokens, URLs privadas, IDs de chat ou dados pessoais no RAG. Não p
 
 ## Provedores
 
-O caminho implementado de produção é ADB + YouTube Create; `MOCK_DEVICE=True` permite testes sem aparelho. A camada `VideoProvider` também possui o adaptadores opcionais Pollinations (`pollinations_video`) e Hugging Face (`huggingface_video`), que exigem suas respectivas chaves, geram MP4 vertical pela API e usam o mesmo fluxo de entrega. A disponibilidade e o custo dependem da quota/saldo da conta; não tratar o provedor como gratuito ilimitado.
+O único caminho de produção é ADB + YouTube Create. MOCK_DEVICE=True permite testar o fluxo sem aparelho físico; em produção, MOCK_DEVICE=False exige o celular conectado e autorizado no ADB.
 
 ## Regras para alterações
 

@@ -5,6 +5,8 @@ Alterna transparentemente entre o dispositivo físico real e o MockDevice confor
 import logging
 import subprocess
 import time
+import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, List
 
@@ -29,7 +31,7 @@ class AndroidDevice:
         if self.serial:
             base_cmd.extend(["-s", self.serial])
         full_cmd = base_cmd + cmd
-        return subprocess.run(full_cmd, capture_output=True, text=True, check=check)
+        return subprocess.run(full_cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=check)
 
     def is_connected(self) -> bool:
         """Verifica se o aparelho celular está conectado e respondendo ao ADB."""
@@ -69,7 +71,7 @@ class AndroidDevice:
             return self._mock.push_file(local_path, remote_path)
         try:
             # Criar diretório remoto se não existir
-            remote_dir = str(Path(remote_path).parent)
+            remote_dir = remote_path.rsplit("/", 1)[0] or "/"
             self._run_adb(["shell", "mkdir", "-p", remote_dir])
             # Transferir
             self._run_adb(["push", local_path, remote_path])
@@ -123,6 +125,69 @@ class AndroidDevice:
             logger.error(f"Erro ao clicar em [{x}, {y}]: {e}")
             return False
 
+    def tap_ui(
+        self,
+        *,
+        resource_id: Optional[str] = None,
+        content_desc: Optional[str] = None,
+        text: Optional[str] = None,
+        contains: bool = False,
+    ) -> bool:
+        """Toca no centro de um elemento encontrado na árvore UI do Android."""
+        if self._mock:
+            return self._mock.tap_ui(
+                resource_id=resource_id,
+                content_desc=content_desc,
+                text=text,
+                contains=contains,
+            )
+
+        xml = self.dump_ui_xml()
+        if not xml:
+            return False
+        try:
+            root = ET.fromstring(xml)
+        except ET.ParseError as exc:
+            logger.warning("Árvore UI inválida: %s", exc)
+            return False
+
+        def matches(value: str, expected: Optional[str]) -> bool:
+            if expected is None:
+                return True
+            return expected in value if contains else value == expected
+
+        for node in root.iter("node"):
+            attrs = node.attrib
+            if resource_id is not None and attrs.get("resource-id") != resource_id:
+                continue
+            if content_desc is not None and not matches(attrs.get("content-desc", ""), content_desc):
+                continue
+            if text is not None and not matches(attrs.get("text", ""), text):
+                continue
+            if attrs.get("enabled", "true") != "true":
+                continue
+            bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", attrs.get("bounds", ""))
+            if not bounds:
+                continue
+            left, top, right, bottom = map(int, bounds.groups())
+            if right <= left or bottom <= top:
+                continue
+            return self.tap((left + right) // 2, (top + bottom) // 2)
+        return False
+
+    def list_remote_files(self, remote_dir: str, suffix: str = "") -> List[str]:
+        """Lista nomes de arquivos em uma pasta remota, sem depender de shell glob."""
+        if self._mock:
+            return self._mock.list_remote_files(remote_dir, suffix=suffix)
+        try:
+            result = self._run_adb(["shell", "ls", "-1t", remote_dir], check=False)
+            if result.returncode != 0:
+                return []
+            names = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            return [name for name in names if not suffix or name.lower().endswith(suffix.lower())]
+        except Exception as exc:
+            logger.warning("Erro ao listar arquivos remotos em %s: %s", remote_dir, exc)
+            return []
     def input_text(self, text: str) -> bool:
         if self._mock:
             return self._mock.input_text(text)

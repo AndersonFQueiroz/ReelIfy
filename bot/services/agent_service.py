@@ -22,7 +22,6 @@ import uuid
 from config.settings import settings
 from bot.services.gemini_service import gemini_service
 from bot.services.queue_service import Job, ProductData, ScriptData, queue_service
-from bot.services.video_providers import is_provider_available, provider_names
 from bot.services.image_providers import image_provider
 
 logger = logging.getLogger(__name__)
@@ -45,9 +44,6 @@ STYLE_TEMPLATES = {
 
 PROVIDER_LABELS = {
     "adb_youtube_create": "YouTube Create no celular",
-    "local_ffmpeg": "renderização local",
-    "pollinations_video": "Pollinations AI pela API",
-    "huggingface_video": "Hugging Face (Wan 2.2)",
 }
 
 
@@ -277,31 +273,12 @@ class AgentService:
         elif "só o link" in lowered or "so o link" in lowered or "copiar" in lowered:
             brief["link_destination"] = "manual_copy"
         provider_text = re.sub(r"[^\wÀ-ÿ]+", " ", lowered).strip()
-        huggingface_terms = (
-            "hugging face", "huggingface", "wan 2", "wan2", "ltx", "hf video",
-            "motor hugging", "modelo aberto",
-        )
-        pollinations_terms = (
-            "pollinations", "api", "nuvem", "online", "motor remoto",
-            "motor gratuito", "motor gratis", "de graça", "de graca",
-            "sem celular", "sem telefone", "sem aparelho", "gerar pela api",
-            "sem youtube", "sem aplicativo", "sem app", "alternativa ao youtube",
-            "segunda opção", "segunda opcao", "opção 2", "opcao 2",
-        )
         youtube_terms = (
             "youtube", "youtube create", "create", "celular", "telefone",
             "android", "adb", "primeira opção", "primeira opcao", "opção 1", "opcao 1",
         )
-        if any(term in provider_text for term in huggingface_terms):
-            brief["provider_id"] = "huggingface_video"
-        # Frases como “não quero celular, prefiro a API” devem priorizar a
-        # escolha explícita da API, mesmo contendo a palavra “celular”.
-        elif any(term in provider_text for term in pollinations_terms):
-            brief["provider_id"] = "pollinations_video"
-        elif any(term in provider_text for term in youtube_terms):
+        if any(term in provider_text for term in youtube_terms):
             brief["provider_id"] = "adb_youtube_create"
-        elif any(term in provider_text for term in ("local", "ffmpeg", "computador")):
-            brief["provider_id"] = "local_ffmpeg"
         if self._is_no_photo(clean):
             brief["media_source"] = "placeholder"
         if lowered in {"gerar imagem", "imagem ia", "gerar uma imagem", "quero imagem de ia"} or "imagem gerada" in lowered:
@@ -361,10 +338,7 @@ class AgentService:
             # A foto é opcional; o usuário pode substituí-la enviando uma imagem
             # depois. Assim, não bloqueamos a conversa com uma escolha técnica.
             brief["media_source"] = "placeholder"
-        if not brief.get("provider_id"):
-            providers = provider_names()
-            if len(providers) == 1:
-                brief["provider_id"] = next(iter(providers))
+        brief["provider_id"] = "adb_youtube_create"
 
     def _missing_question(self, brief: dict[str, Any]) -> Optional[str]:
         if not brief.get("product_name"):
@@ -373,10 +347,6 @@ class AgentService:
             return f"Entendi: {brief['product_name']}. Quais são os principais benefícios ou diferenciais dele?"
         if brief.get("media_source") in {None, "pending_choice"}:
             return "Você pode enviar uma foto do produto ou escolher: gerar imagem, usar placeholder ou continuar sem foto."
-        if not brief.get("provider_id") or not is_provider_available(brief.get("provider_id", "")):
-            names = provider_names()
-            options = " ou ".join(name for name in names.values()) or "nenhum motor está disponível agora"
-            return f"Qual motor você prefere: {options}? Vou mostrar apenas os que estiverem disponíveis."
         return None
 
     def _fallback_reply(self, brief: dict[str, Any], text: str) -> str:
@@ -397,28 +367,26 @@ class AgentService:
         if not client:
             return "", []
         tools = [{"function_declarations": [
-            {"name": "update_brief", "description": "Atualiza informações fornecidas pelo usuário.", "parameters": {"type": "object", "properties": {"product_name": {"type": "string"}, "benefits": {"type": "string"}, "target_audience": {"type": "string"}, "affiliate_link": {"type": "string"}, "style": {"type": "string"}, "link_destination": {"type": "string"}, "media_source": {"type": "string"}, "provider_id": {"type": "string"}}}},
+            {"name": "update_brief", "description": "Atualiza informações fornecidas pelo usuário.", "parameters": {"type": "object", "properties": {"product_name": {"type": "string"}, "benefits": {"type": "string"}, "target_audience": {"type": "string"}, "affiliate_link": {"type": "string"}, "style": {"type": "string"}, "link_destination": {"type": "string"}, "media_source": {"type": "string"}}}},
             {"name": "record_user_correction", "description": "Registra uma correção feita pelo usuário para o briefing atual.", "parameters": {"type": "object", "properties": {"correction": {"type": "string"}}, "required": ["correction"]}},
             {"name": "finalize_video_request", "description": "Dispara a criação do vídeo somente quando o briefing estiver completo e confirmado.", "parameters": {"type": "object", "properties": {"confirmed": {"type": "boolean"}}, "required": ["confirmed"]}},
             {"name": "generate_product_image", "description": "Solicita uma imagem ilustrativa quando o usuário não tem foto.", "parameters": {"type": "object", "properties": {"prompt": {"type": "string"}, "confirmed": {"type": "boolean"}}, "required": ["confirmed"]}},
-            {"name": "select_video_provider", "description": "Seleciona somente um provedor que a aplicação informou como disponível.", "parameters": {"type": "object", "properties": {"provider_id": {"type": "string"}}, "required": ["provider_id"]}},
         ]}]
         rag_text = "\n- ".join(rag)
         style_text = json.dumps(STYLE_TEMPLATES, ensure_ascii=False)
-        provider_options = "; ".join(f"{provider_id}: {label}" for provider_id, label in provider_names().items())
         system = (
-            "Você é o atendente natural deste bot. Nunca invente ou repita um nome de marca; "
-            f"Provedores disponíveis: {provider_options}. Nunca mostre os IDs técnicos ao usuário; use somente os nomes amigáveis. "
-            "use a identidade que aparecer na mensagem do Telegram. Converse em português brasileiro. "
-            "Converse como uma pessoa atenta: reconheça o que já entendeu, responda ao contexto e varie "
-            "a forma de falar. Não repita formulário, não liste campos e não faça várias perguntas de uma vez. "
-            "Pergunte somente o indispensável; público, estilo, destino do link e provedor têm padrões seguros "
-            "e não devem ser perguntados se já puderem ser inferidos. Analise toda imagem anexada: leia nome, "
-            "marca, rótulos e textos legíveis. Se o nome estiver visível, use update_brief e não pergunte o nome "
-            "novamente. Nunca invente dados. Use update_brief ao extrair informações. A aplicação mostrará a "
-            "prévia e pedirá aprovação; nunca considere uma confirmação implícita como aprovação.\n\n"
-            "Interprete escolhas por intenção, não por palavras exatas. Se o usuário disser API, online, nuvem, gratuito, sem celular ou alternativa ao YouTube, selecione pollinations_video. Se disser Hugging Face, HF, Wan, Wan 2, LTX ou modelo aberto, selecione huggingface_video. Se disser YouTube Create, celular, aplicativo, Android ou ADB, selecione adb_youtube_create. Se disser local, computador ou FFmpeg, selecione local_ffmpeg. Só selecione um motor listado como disponível\n\n"
-            f"RAG:\n- {rag_text}\n\nEstilos disponíveis:\n{style_text}\n\nBriefing atual:\n{json.dumps(brief, ensure_ascii=False)}\n"
+            "Voce e o atendente natural deste bot. Nunca invente ou repita um nome de marca; "
+            "use a identidade que aparecer na mensagem do Telegram. Converse em portugues brasileiro. "
+            "Converse como uma pessoa atenta: reconheca o que ja entendeu, responda ao contexto e varie "
+            "a forma de falar. Nao repita formulario, nao liste campos e nao faca varias perguntas de uma vez. "
+            "Pergunte somente o indispensavel; publico, estilo e destino do link tem padroes seguros e nao devem "
+            "ser perguntados se ja puderem ser inferidos. Analise toda imagem anexada: leia nome, marca, rotulos "
+            "e textos legiveis. Se o nome estiver visivel, use update_brief e nao pergunte o nome novamente. "
+            "Nunca invente dados. Use update_brief ao extrair informacoes. A aplicacao mostrara a previa e pedira "
+            "aprovacao; nunca considere uma confirmacao implicita como aprovacao.\n\n"
+            "O unico motor de video e o YouTube Create controlado pelo ADB; nao ofereca APIs ou renderizacao local como alternativa.\n\n"
+            f"RAG:\n- {rag_text}\n\nEstilos disponiveis:\n{style_text}\n\n"
+            f"Briefing atual:\n{json.dumps(brief, ensure_ascii=False)}\n"
         )
         transcript = "\n".join(f"{item['role']}: {item['text']}" for item in history[-12:])
         prompt = f"{system}\nHistórico:\n{transcript}\nusuário: {text}"
@@ -566,7 +534,7 @@ class AgentService:
             user_name=str(chat_id),
             product=product,
             script=script,
-            provider_id=brief.get("provider_id", "adb_youtube_create"),
+            provider_id="adb_youtube_create",
             style_id=style,
             media_source=brief.get("media_source", "real_photo"),
             link_destination=brief.get("link_destination", "manual_copy"),
@@ -623,10 +591,6 @@ class AgentService:
                         brief[key] = value
             elif name == "generate_product_image" and args.get("confirmed") is True:
                 brief["media_source"] = "generated"
-            elif name == "select_video_provider":
-                provider_id = str(args.get("provider_id", ""))
-                if is_provider_available(provider_id):
-                    brief["provider_id"] = provider_id
             elif name == "record_user_correction":
                 brief["last_correction"] = str(args.get("correction", ""))
 
@@ -647,8 +611,6 @@ class AgentService:
         if brief.get("media_source") == "none" and brief.get("provider_id") == "adb_youtube_create":
             brief["media_source"] = "placeholder"
             brief.setdefault("media_paths", []).append(self._create_placeholder(brief.get("product_name", "produto")))
-        if brief.get("provider_id") and not is_provider_available(brief["provider_id"]):
-            brief.pop("provider_id", None)
         self._apply_defaults(brief)
         if self._missing_question(brief) is None:
             return await self._generate_preview(chat_id, brief, history)

@@ -96,7 +96,7 @@ ReelIfy/
 │       ├── gemini_service.py  # Geração de roteiro contextual
 │       ├── agent_service.py   # Sessões, RAG e function calling
 │       ├── image_providers.py # Imagem IA opcional e fallback
-│       ├── video_providers.py # Registro de motores sem cobrança automática
+│       ├── video_providers.py # Registro do motor YouTube Create via ADB
 │       └── queue_service.py   # Gerenciamento atômico da fila de jobs
 ├── automation/
 │   ├── worker.py              # Polling e orquestração da automação
@@ -152,16 +152,8 @@ Edite o arquivo `.env` com suas chaves:
 | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | Motor de inteligência generativa e roteirização |
 | `GEMINI_IMAGE_MODEL` | Google AI Studio, opcional | Modelo de imagem; se ausente ou indisponível, usa placeholder |
 | `AGENT_DB_PATH` | Local | Banco SQLite do agente e RAG |
-| `VIDEO_PROVIDER_POLICY` | Local | `free_only` impede uso automático de provedores pagos |
-| `POLLINATIONS_API_KEY` | Pollinations | Chave opcional para o provedor de vídeo por API |
-| `POLLINATIONS_VIDEO_MODEL` | Pollinations | Modelo opcional; padrão `wan-fast` |
-| `POLLINATIONS_VIDEO_DURATION` | Pollinations | Duração do clipe; padrão `15` segundos |
-| `HF_TOKEN` | Hugging Face | Token com permissão para Inference Providers |
-| `HF_VIDEO_MODEL` | Hugging Face | Modelo; padrão `Wan-AI/Wan2.2-I2V-A14B` |
-| `HF_VIDEO_PROVIDER` | Hugging Face | Roteamento; padrão `auto` |
 
 > **Dica:** Deixe `MOCK_DEVICE=True` para testar sem celular físico conectado.
-> A API Pollinations só aparece como opção quando `POLLINATIONS_API_KEY` está configurada; a quota/saldo depende da conta.
 
 ---
 
@@ -209,7 +201,7 @@ Execute todos os testes automatizados (funciona sem hardware físico):
 
 - ✅ Conversa livre com texto e fotos em qualquer ordem
 - ✅ Correções e aprendizados agregados no RAG local
-- ✅ Seleção segura de estilo, mídia e provedor
+- ✅ Seleção segura de estilo e mídia
 
 ```bash
 pytest tests/ -v

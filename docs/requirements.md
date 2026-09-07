@@ -24,7 +24,7 @@ Quando uma imagem real for enviada, o arquivo deve ser encaminhado ao Gemini com
 
 ### RF04 — Coleta mínima
 
-Produto e benefícios são os dados essenciais. Público, estilo, destino do link e provedor devem ser inferidos ou receber defaults seguros quando não forem necessários. A ausência de foto deve seguir com placeholder, salvo escolha diferente do usuário.
+Produto e benefícios são os dados essenciais. Público, estilo e destino do link devem ser inferidos ou receber defaults seguros quando não forem necessários. A produção usa exclusivamente YouTube Create via ADB. A ausência de foto deve seguir com placeholder, salvo escolha diferente do usuário.
 
 ### RF05 — Roteiro
 
@@ -68,7 +68,7 @@ O usuário dispõe de `/start`, `/novo_video`, `/status`, `/pedidos`, `/ajuda` e
 - Toda rede, Gemini e ADB devem ter tratamento de exceção e logging contextual.
 - O código deve funcionar em Debian/Termux sem interface gráfica quando o hardware e as dependências estiverem disponíveis.
 - O bot e o worker devem poder ser executados separadamente.
-- O provedor ADB é o caminho de produção atual. A camada de provedores pode receber APIs externas no futuro, mas nenhuma API paga deve ser habilitada como se fosse gratuita.
+- O YouTube Create via ADB é o único caminho de produção. Não há APIs externas ou renderização local de vídeo habilitadas.
 
 ## Critérios de aceite
 

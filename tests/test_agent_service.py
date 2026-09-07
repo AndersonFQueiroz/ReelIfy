@@ -30,8 +30,6 @@ def test_free_conversation_creates_job_with_style_and_placeholder(tmp_path, monk
     queue = QueueService(tmp_path / "queue.json")
     monkeypatch.setattr(agent_module, "queue_service", queue)
     monkeypatch.setattr(settings, "mock_device", True)
-    monkeypatch.setattr(settings, "pollinations_api_key", "")
-    monkeypatch.setattr(settings, "huggingface_token", "")
     monkeypatch.setattr(gemini_service, "_client", None)
     monkeypatch.setattr(gemini_service, "generate_script", fake_script)
 
@@ -66,8 +64,6 @@ def test_preview_requires_approval_and_learns_correction(tmp_path, monkeypatch):
     queue = QueueService(tmp_path / "queue.json")
     monkeypatch.setattr(agent_module, "queue_service", queue)
     monkeypatch.setattr(settings, "mock_device", True)
-    monkeypatch.setattr(settings, "pollinations_api_key", "")
-    monkeypatch.setattr(settings, "huggingface_token", "")
     monkeypatch.setattr(gemini_service, "_client", None)
     monkeypatch.setattr(gemini_service, "generate_script", fake_script)
 

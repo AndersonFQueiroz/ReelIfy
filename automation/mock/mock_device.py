@@ -60,6 +60,12 @@ class MockDevice:
         time.sleep(0.5)
         return True
 
+    def tap_ui(self, **kwargs) -> bool:
+        logger.info("[MOCK ADB] Toque em seletor de UI: %s", kwargs)
+        return self.tap(0, 0)
+
+    def list_remote_files(self, remote_dir: str, suffix: str = "") -> list:
+        return []
     def input_text(self, text: str) -> bool:
         preview = (text[:30] + "...") if len(text) > 30 else text
         logger.info(f"[MOCK ADB] Inserindo texto/roteiro no campo: '{preview}'")

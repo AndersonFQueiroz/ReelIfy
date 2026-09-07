@@ -1,55 +1,25 @@
-# ==============================================================================
-# CALIBRAÇÃO DE COORDENADAS E SELETORES DE TELA - YOUTUBE CREATE
-# ==============================================================================
-# IMPORTANTE: Nunca altere o código Python para mudar posições de clique.
-# Quando você estiver com o celular físico em mãos, ative:
-# "Opções do desenvolvedor" -> "Localização do ponteiro" no Android.
-# O Android exibirá na barra superior as coordenadas exatas (X, Y) de cada toque.
-# Substitua os valores abaixo pelas coordenadas reais observadas no seu aparelho.
-# ==============================================================================
-
+# Coordenadas de fallback para YouTube Create em 720x1600 (área útil ADB: 720x1459).
+# O worker prioriza os resource-id/content-desc expostos pelo app.
 device:
-  default_resolution: "1080x2400"
-  package_name: "com.google.android.apps.youtube.creator"
+  default_resolution: "720x1600"
+  package_name: "com.google.android.apps.youtube.producer"
   temp_phone_dir: "/sdcard/Download/reelify_temp/"
 
 coordinates:
-  # 1. Tela Inicial: Botão "+" ou "Novo Projeto"
-  btn_new_project: [540, 2200]
-
-  # 2. Seletor de Mídia: Aba de "Fotos" ou "Imagens"
-  tab_images: [350, 400]
-
-  # 3. Seletor de Mídia: Miniaturas das fotos importadas (grade horizontal)
-  first_image_thumbnail: [180, 550]
-  second_image_thumbnail: [540, 550]
-  third_image_thumbnail: [900, 550]
-
-  # 4. Botão "Importar" / "Avançar" após selecionar a foto
-  btn_import_media: [900, 2250]
-
-  # 5. Barra de ferramentas do editor: Botão de "Narração" ou recurso de IA / Texto
-  btn_add_voice_or_ai: [800, 1800]
-
-  # 6. Caixa de texto / Prompt do roteiro
-  input_text_script: [540, 1200]
-
-  # 7. Botão "Gerar / Aplicar" roteiro
-  btn_generate: [540, 2100]
-
-  # 8. Menu de exportação / Botão "Exportar" (canto superior direito)
-  btn_export_menu: [1000, 150]
-
-  # 9. Confirmação de qualidade e exportação final
-  btn_export_confirm: [540, 1900]
+  btn_generate_video: [456, 686]
+  input_text_script: [360, 300]
+  btn_upload_images: [360, 710]
+  media_thumbnail_1: [134, 422]
+  media_thumbnail_2: [360, 422]
+  media_thumbnail_3: [586, 422]
+  btn_finish_media_selection: [360, 1445]
+  btn_generate: [360, 870]
+  btn_use_video: [192, 1427]
+  btn_export_menu: [672, 205]
+  btn_save_to_device: [360, 1314]
 
 ui_selectors:
-  # Textos identificáveis via uiautomator dump
-  btn_export_text: "Exportar"
-  btn_done_text: "Concluído"
-  btn_save_text: "Salvar"
-  progress_indicator_keywords:
-    - "Renderizando"
-    - "Gerando"
-    - "Exportando"
-    - "Aguarde"
+  r2v_resource_id: "r2v"
+  prompt_resource_id: "storygen_prompt_input"
+  export_text: "Exportar"
+  save_to_device_text: "Salvar no dispositivo"

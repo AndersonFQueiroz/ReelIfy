@@ -44,16 +44,6 @@ class Settings:
     gemini_timeout_seconds: int = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "30"))
     gemini_image_model: str = os.getenv("GEMINI_IMAGE_MODEL", "")
     agent_db_path: Path = BASE_DIR / os.getenv("AGENT_DB_PATH", "data/agent.db")
-    video_provider_policy: str = os.getenv("VIDEO_PROVIDER_POLICY", "free_only")
-    pollinations_api_key: str = os.getenv("POLLINATIONS_API_KEY", "")
-    pollinations_video_model: str = os.getenv("POLLINATIONS_VIDEO_MODEL", "wan-fast")
-    pollinations_video_duration: int = int(os.getenv("POLLINATIONS_VIDEO_DURATION", "15"))
-    pollinations_timeout_seconds: int = int(os.getenv("POLLINATIONS_TIMEOUT_SECONDS", "300"))
-    huggingface_token: str = os.getenv("HF_TOKEN", "")
-    huggingface_video_model: str = os.getenv("HF_VIDEO_MODEL", "Wan-AI/Wan2.2-I2V-A14B")
-    huggingface_video_provider: str = os.getenv("HF_VIDEO_PROVIDER", "auto")
-    huggingface_timeout_seconds: int = int(os.getenv("HF_VIDEO_TIMEOUT_SECONDS", "600"))
-    huggingface_video_frames: int = int(os.getenv("HF_VIDEO_FRAMES", "49"))
 
 
     # Fila e Armazenamento

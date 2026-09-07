@@ -15,7 +15,6 @@ from config.settings import settings
 from telegram.helpers import escape_markdown
 from bot.services.queue_service import queue_service, Job, JobStatus
 from automation.adb.device import get_device
-from bot.services.video_providers import HuggingFaceVideoProvider, PollinationsVideoProvider
 
 logging.basicConfig(
     format="%(asctime)s - [%(levelname)s] - [WORKER] - %(message)s",
@@ -43,7 +42,7 @@ class VideoAutomationWorker:
         self.coords_config = settings.load_coordinates()
         self.coords = self.coords_config.get("coordinates", {})
         self.device_config = self.coords_config.get("device", {})
-        self.package_name = self.device_config.get("package_name", "com.google.android.apps.youtube.creator")
+        self.package_name = self.device_config.get("package_name", "com.google.android.apps.youtube.producer")
         self.remote_temp_dir = self.device_config.get("temp_phone_dir", "/sdcard/Download/reelify_temp/")
 
     async def send_telegram_video(self, chat_id: int, video_path: Path, caption: str) -> bool:
@@ -104,154 +103,162 @@ class VideoAutomationWorker:
         logger.info(f"Executando toque: {point_name} em [{x}, {y}]")
         return self.device.tap(x, y)
 
-    def _process_pollinations_job(self, job: Job) -> bool:
-        """Renderiza o job pela API HTTP, sem depender do celular Android."""
-        local_video_output = settings.media_outputs_dir / f"video_{job.job_id[:8]}.mp4"
-        try:
-            provider = PollinationsVideoProvider()
-            if not provider.is_available():
-                raise RuntimeError("POLLINATIONS_API_KEY não configurada para o provedor selecionado.")
-            logger.info("Gerando vídeo do Job %s via Pollinations (%s)...", job.job_id, settings.pollinations_video_model)
-            provider.render(job, local_video_output)
-            self.queue_service.mark_completed(job.job_id, str(local_video_output))
-            logger.info("Job %s concluído pela API Pollinations.", job.job_id)
+    def _tap_ui_or_point(self, *, fallback_name: str, resource_id: str = None, content_desc: str = None, text: str = None, contains: bool = False) -> bool:
+        """Usa o seletor exposto pelo YouTube Create e recorre à coordenada calibrada."""
+        if self.device.tap_ui(resource_id=resource_id, content_desc=content_desc, text=text, contains=contains):
             return True
-        except Exception as error:
-            error_msg = str(error)
-            logger.error("Erro na API Pollinations para o Job %s: %s", job.job_id, error_msg, exc_info=True)
-            self.queue_service.mark_failed(job.job_id, error_msg)
-            return False
+        return self._tap_point(fallback_name)
 
-    def _process_huggingface_job(self, job: Job) -> bool:
-        """Renderiza o job por image-to-video no Hugging Face."""
-        local_video_output = settings.media_outputs_dir / f"video_{job.job_id[:8]}.mp4"
-        try:
-            provider = HuggingFaceVideoProvider()
-            if not provider.is_available():
-                raise RuntimeError("HF_TOKEN não configurado para o provedor selecionado.")
-            logger.info("Gerando vídeo do Job %s via Hugging Face (%s)...", job.job_id, settings.huggingface_video_model)
-            provider.render(job, local_video_output)
-            self.queue_service.mark_completed(job.job_id, str(local_video_output))
-            logger.info("Job %s concluído pelo Hugging Face.", job.job_id)
-            return True
-        except Exception as error:
-            error_msg = str(error)
-            logger.error("Erro no Hugging Face para o Job %s: %s", job.job_id, error_msg, exc_info=True)
-            self.queue_service.mark_failed(job.job_id, error_msg)
-            return False
-
+    def _wait_for_ui(self, *, timeout: float, resource_id: str = None, content_desc: str = None, text: str = None, contains: bool = False) -> bool:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if settings.mock_device:
+                return True
+            xml = self.device.dump_ui_xml()
+            if not xml:
+                time.sleep(1)
+                continue
+            if resource_id and f'resource-id="{resource_id}"' in xml:
+                return True
+            if content_desc:
+                needle = content_desc if contains else f'content-desc="{content_desc}"'
+                if needle in xml:
+                    return True
+            if text:
+                needle = text if contains else f'text="{text}"'
+                if needle in xml:
+                    return True
+            time.sleep(1)
+        return False
     def process_job(self, job: Job) -> bool:
-        """Executa o ciclo completo de automação para um pedido."""
-        if job.provider_id == "huggingface_video":
-            return self._process_huggingface_job(job)
-        if job.provider_id == "pollinations_video":
-            return self._process_pollinations_job(job)
+        """Gera o vídeo pela tela Gerar vídeo do YouTube Create e baixa o MP4 exportado."""
         logger.info(f"==> Iniciando processamento do Job {job.job_id} ({_md(job.product.name)})")
 
         photos_to_send = job.product.photos_local_paths or ([job.product.photo_local_path] if job.product.photo_local_path else [])
+        photos_to_send = photos_to_send[:3]
+        if not photos_to_send:
+            raise ValueError("O YouTube Create exige pelo menos uma imagem para Gerar vídeo.")
+
         remote_photo_paths = [
             f"{self.remote_temp_dir}product_photo_{i + 1}{Path(local_p).suffix or '.jpg'}"
             for i, local_p in enumerate(photos_to_send)
         ]
-        remote_video_path = f"/sdcard/Movies/YouTubeCreate/final_{job.job_id[:8]}.mp4"
+        remote_video_dir = "/sdcard/Download"
+        existing_videos = set(self.device.list_remote_files(remote_video_dir, suffix=".mp4"))
         local_video_output = settings.media_outputs_dir / f"video_{job.job_id[:8]}.mp4"
 
         try:
-            # 0. Verificação prévia de hardware físico (celular slave + notebook via ADB)
             if not settings.mock_device and not self.device.is_connected():
                 raise HardwareNotAvailableError(
-                    "Celular Android (slave) ou notebook 24/7 de automação não detectado via ADB. "
-                    "O roteiro do produto foi mantido seguro na fila! Conecte o aparelho físico para renderizar o vídeo."
+                    "Celular Android ou notebook de automação não detectado via ADB. "
+                    "Conecte o aparelho físico para renderizar o vídeo."
                 )
 
-            # 1. Acordar e destravar celular
             self.device.wake_and_unlock()
+            logger.info("Enviando %s foto(s) para o celular...", len(photos_to_send))
+            for local_p, remote_p in zip(photos_to_send, remote_photo_paths):
+                if not self.device.push_file(local_p, remote_p):
+                    raise RuntimeError(f"Falha ao transferir foto {local_p} para o celular.")
 
-            # 2. Transferir as fotos para o celular
-            logger.info(f"Enviando {len(photos_to_send)} foto(s) do produto para o celular...")
-            for local_p, rem_p in zip(photos_to_send, remote_photo_paths):
-                if not self.device.push_file(local_p, rem_p):
-                    raise RuntimeError(f"Falha ao transferir foto {local_p} para o armazenamento do celular.")
-
-            # 3. Iniciar o app YouTube Create
-            logger.info(f"Iniciando {self.package_name}...")
+            logger.info("Iniciando YouTube Create...")
             self.device.stop_app(self.package_name)
             if not self.device.launch_app(self.package_name):
                 raise RuntimeError("Falha ao abrir o aplicativo YouTube Create.")
-
             time.sleep(2)
 
-            # 4. Navegação pela interface
-            self._tap_point("btn_new_project")
-            time.sleep(1)
-            self._tap_point("tab_images")
-            time.sleep(1)
+            # Tela inicial -> Gerar vídeo (R2V).
+            if not self._tap_ui_or_point(fallback_name="btn_generate_video", resource_id="r2v"):
+                raise RuntimeError("Botão Gerar vídeo não encontrado no YouTube Create.")
+            if not self._wait_for_ui(timeout=10, resource_id="storygen_prompt_input"):
+                raise RuntimeError("Tela Geração de vídeos não abriu.")
 
-            # Seleciona as miniaturas das fotos (até 3 fotos para múltiplos ângulos)
-            thumbnail_points = ["first_image_thumbnail", "second_image_thumbnail", "third_image_thumbnail"]
-            for idx in range(min(len(photos_to_send), 3)):
-                self._tap_point(thumbnail_points[idx])
-                time.sleep(0.5)
+            if not self._tap_ui_or_point(fallback_name="input_text_script", resource_id="storygen_prompt_input"):
+                raise RuntimeError("Campo de roteiro não encontrado.")
+            logger.info("Inserindo roteiro no YouTube Create...")
+            if not self.device.input_text(job.script.full_text):
+                raise RuntimeError("Falha ao inserir o roteiro no YouTube Create.")
 
-            self._tap_point("btn_import_media")
-            time.sleep(2)
+            if not self._tap_ui_or_point(
+                fallback_name="btn_upload_images",
+                content_desc="Fazer upload de até 3 imagens",
+            ):
+                raise RuntimeError("Botão de upload de imagens não encontrado.")
+            if not self._wait_for_ui(timeout=10, resource_id="mediaThumbnail-0"):
+                raise RuntimeError("Galeria do YouTube Create não abriu.")
 
-            # 5. Adicionar narração / roteiro
-            self._tap_point("btn_add_voice_or_ai")
-            time.sleep(1)
-            self._tap_point("input_text_script")
-            time.sleep(0.5)
+            thumbnail_fallbacks = ["media_thumbnail_1", "media_thumbnail_2", "media_thumbnail_3"]
+            for idx, fallback_name in enumerate(thumbnail_fallbacks[:len(photos_to_send)]):
+                if not self._tap_ui_or_point(
+                    fallback_name=fallback_name,
+                    resource_id=f"mediaThumbnail-{idx}",
+                ):
+                    raise RuntimeError(f"Miniatura {idx + 1} não encontrada na galeria.")
+                time.sleep(0.4)
 
-            # Inserir o roteiro
-            logger.info("Inserindo roteiro de 20 segundos...")
-            self.device.input_text(job.script.full_text)
-            time.sleep(1)
+            if not self._tap_ui_or_point(fallback_name="btn_finish_media_selection", content_desc="Concluído"):
+                raise RuntimeError("Botão Concluído da galeria não encontrado.")
+            if not self._wait_for_ui(timeout=10, content_desc="Gerar"):
+                raise RuntimeError("Botão Gerar não apareceu após o upload.")
+            if not self._tap_ui_or_point(fallback_name="btn_generate", content_desc="Gerar"):
+                raise RuntimeError("Não foi possível iniciar a geração.")
 
-            # 6. Gerar e aguardar
-            self._tap_point("btn_generate")
-            logger.info("Geração acionada. Aguardando conclusão da renderização...")
-
-            # Polling de conclusão (máximo 5 minutos)
-            max_wait_seconds = 300
-            start_wait = time.time()
-            completed = False
-
-            while (time.time() - start_wait) < max_wait_seconds:
-                xml_dump = self.device.dump_ui_xml()
-                if "Concluído" in xml_dump or "Exportar" in xml_dump or settings.mock_device:
-                    logger.info("Geração de vídeo detectada como concluída!")
-                    completed = True
+            logger.info("Geração acionada; aguardando resultado do YouTube Create...")
+            deadline = time.time() + 300
+            generated = False
+            while time.time() < deadline:
+                xml = self.device.dump_ui_xml()
+                if settings.mock_device or "Usar vídeo" in xml or "Vídeo gerado" in xml:
+                    generated = True
                     break
+                if any(token in xml.lower() for token in ("não foi possível", "falha", "erro ao gerar")):
+                    raise RuntimeError("O YouTube Create informou falha na geração.")
                 time.sleep(5)
+            if not generated:
+                raise TimeoutError("Tempo limite de geração atingido no YouTube Create.")
 
-            if not completed:
-                raise TimeoutError("Tempo limite de renderização atingido no YouTube Create.")
+            if not settings.mock_device:
+                if not self._tap_ui_or_point(fallback_name="btn_use_video", content_desc="Usar vídeo"):
+                    raise RuntimeError("Botão Usar vídeo não encontrado.")
+                if not self._wait_for_ui(timeout=20, content_desc="Exportar"):
+                    raise RuntimeError("Editor não apresentou o botão Exportar.")
+                if not self._tap_ui_or_point(fallback_name="btn_export_menu", content_desc="Exportar"):
+                    raise RuntimeError("Não foi possível abrir Exportar.")
+                if not self._wait_for_ui(timeout=10, content_desc="Salvar no dispositivo"):
+                    raise RuntimeError("Opção Salvar no dispositivo não apareceu.")
+                if not self._tap_ui_or_point(fallback_name="btn_save_to_device", content_desc="Salvar no dispositivo"):
+                    raise RuntimeError("Não foi possível salvar o vídeo no dispositivo.")
 
-            # 7. Exportar vídeo
-            self._tap_point("btn_export_menu")
-            time.sleep(1)
-            self._tap_point("btn_export_confirm")
-            time.sleep(3)
+                # O nome é criado pelo app; aguarda um MP4 novo em Downloads.
+                deadline = time.time() + 60
+                remote_video_name = None
+                while time.time() < deadline:
+                    candidates = [
+                        name for name in self.device.list_remote_files(remote_video_dir, suffix=".mp4")
+                        if name not in existing_videos
+                    ]
+                    if candidates:
+                        remote_video_name = candidates[0]
+                        break
+                    time.sleep(2)
+                if not remote_video_name:
+                    raise RuntimeError("O vídeo foi exportado, mas nenhum MP4 novo foi encontrado em /sdcard/Download.")
+                remote_video_path = f"{remote_video_dir}/{remote_video_name}"
+            else:
+                remote_video_path = f"{self.remote_temp_dir}final_{job.job_id[:8]}.mp4"
 
-            # 8. Download do vídeo para o PC
-            logger.info("Baixando vídeo renderizado do celular (adb pull)...")
+            logger.info("Baixando vídeo renderizado do celular...")
             if not self.device.pull_file(remote_video_path, str(local_video_output)):
-                raise RuntimeError("Falha ao puxar o arquivo de vídeo do celular.")
+                raise RuntimeError("Falha ao puxar o MP4 do celular.")
 
-            # 9. Limpar arquivos remotos do celular
             self.device.clean_remote_files(remote_photo_paths + [remote_video_path])
             self.device.stop_app(self.package_name)
-
-            # 10. Sucesso
             self.queue_service.mark_completed(job.job_id, str(local_video_output))
-            logger.info(f"Job {job.job_id} concluído com sucesso localmente!")
+            logger.info("Job %s concluído com sucesso.", job.job_id)
             return True
 
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"Erro durante execução do Job {job.job_id}: {error_msg}", exc_info=True)
-
-            # Captura de screenshot e encerramento de app apenas se o device responder
+            logger.error("Erro durante execução do Job %s: %s", job.job_id, error_msg, exc_info=True)
             if self.device.is_connected():
                 try:
                     error_screenshot = settings.logs_dir / f"error_{job.job_id[:8]}.png"
@@ -259,10 +266,8 @@ class VideoAutomationWorker:
                     self.device.stop_app(self.package_name)
                 except Exception:
                     pass
-
             self.queue_service.mark_failed(job.job_id, error_msg)
             return False
-
     async def step_and_deliver(self) -> None:
         """Processa um job pendente e realiza a entrega no Telegram."""
         job = self.queue_service.get_next_pending_job()
