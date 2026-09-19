@@ -80,6 +80,15 @@ def create_post(token: str, svc: str, channel_id: str, text: str,
     raise RuntimeError(res.get("message", "erro desconhecido"))
 
 
+def delete_post(token: str, post_id: str) -> bool:
+    try:
+        d = _gql(token, "mutation($i: DeletePostInput!) { deletePost(input: $i) { __typename } }",
+                 {"i": {"id": post_id}})
+        return d.get("deletePost", {}).get("__typename") == "DeletePostSuccess"
+    except Exception:
+        return False
+
+
 def main(day: str, only: list[str] | None = None) -> int:
     from . import upload_public
     token = C.env("BUFFER_API_KEY")
