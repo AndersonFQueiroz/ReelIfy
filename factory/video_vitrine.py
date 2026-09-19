@@ -17,7 +17,7 @@ from .video_cinetico import base_scene, handle_footer, short_name
 
 # Eco animado (coords saída 720x1280): capa canto sup-direito, cards sticker
 # na pílula, final à esquerda do QR. Longe da logo (centro) e das legendas.
-ECO_POS = {"cover": {"x": 560, "y": 235, "size": 150},
+ECO_POS = {"cover": {"x": 575, "y": 600, "size": 120},
            "card": {"x": 470, "y": 330, "size": 120},
            "final": {"x": 20, "y": 500, "size": 130}}
 

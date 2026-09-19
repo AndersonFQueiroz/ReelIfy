@@ -1,7 +1,5 @@
-"""Mascote Eco: carrinho cartoon 100% local (PIL, zero IA/zero custo).
-
-eco_frame(): 1 frame do loop de fala (quique + boca + piscada).
-eco_loop(): sequência eco_00..07.png p/ overlay animado no ffmpeg.
+"""Mascote Eco: arte externa (assets/eco/*.png) com loop de fala.
+Fallback: desenho PIL caso os PNGs não existam.
 """
 from __future__ import annotations
 
@@ -10,6 +8,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from . import config as C
+
 CYAN = (34, 211, 238)
 NAVY = (10, 22, 52)
 WHITE = (255, 255, 255)
@@ -17,6 +17,8 @@ BLUSH = (255, 150, 180)
 
 NFRAMES = 8
 FPS_LOOP = 6
+ECO_DIR = C.ASSETS / "eco"
+ECO_SEQ = ["base", "open", "half", "open", "base", "half", "blink", "base"]
 
 
 def _draw_eco(d: ImageDraw.ImageDraw, u: float, dy: float,
@@ -83,11 +85,53 @@ def eco_png(size: int = 800, dest: Path | None = None) -> Image.Image:
     return img
 
 
+def _badge(sprite: Image.Image, size: int) -> Image.Image:
+    """Recorta círculo no personagem + anel cyan + fundo transparente."""
+    sprite = sprite.convert("RGBA")
+    # fundo chapado → alpha (floodfill dos 4 cantos)
+    bg = sprite.getpixel((0, 0))[:3]
+    for corner in [(0, 0), (sprite.width - 1, 0), (0, sprite.height - 1),
+                   (sprite.width - 1, sprite.height - 1)]:
+        ImageDraw.floodfill(sprite, corner, (0, 0, 0, 0), thresh=60)
+    bbox = sprite.getbbox()
+    if not bbox:
+        return sprite.resize((size, size), Image.LANCZOS)
+    cx = (bbox[0] + bbox[2]) / 2
+    cy = (bbox[1] + bbox[3]) / 2
+    r = max(bbox[2] - bbox[0], bbox[3] - bbox[1]) / 2 * 1.04
+    side = int(r * 2 + 36)
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    canvas.paste(sprite, (int(side / 2 - cx), int(side / 2 - cy)), sprite)
+    mask = Image.new("L", (side, side), 0)
+    ImageDraw.Draw(mask).ellipse([18, 18, side - 18, side - 18], fill=255)
+    badge = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    badge.paste(canvas, (0, 0), mask)
+    ring = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    ImageDraw.Draw(ring).ellipse([18, 18, side - 18, side - 18],
+                                 outline=CYAN + (255,), width=max(6, side // 60))
+    badge.alpha_composite(ring)
+    # sombra navy atrás p/ fundir com o bg do vídeo
+    glow = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).ellipse([18, 18, side - 18, side - 18], fill=NAVY + (255,))
+    return Image.alpha_composite(glow, badge).resize((size, size), Image.LANCZOS)
+
+
 def eco_loop(outdir: Path, size: int = 440) -> Path:
-    """Gera eco_00..07.png (fundo transparente). Retorna o dir."""
+    """Monta eco_00..07.png a partir da arte externa (fallback: PIL)."""
     outdir.mkdir(parents=True, exist_ok=True)
+    if (ECO_DIR / "base.png").exists():
+        sprites = {n: _badge(Image.open(ECO_DIR / f"{n}.png"), size) for n in
+                   ("base", "open", "half", "blink")}
+        seq = [sprites[n] for n in ECO_SEQ]
+    else:
+        seq = [eco_frame(size, p) for p in range(NFRAMES)]
+    amp = size * 0.035
     for p in range(NFRAMES):
-        eco_frame(size, p).save(outdir / f"eco_{p:02d}.png")
+        spr = seq[p]
+        dy = int(amp * math.sin(2 * math.pi * p / NFRAMES))
+        canvas = Image.new("RGBA", (size, size + int(amp * 2) + 8), (0, 0, 0, 0))
+        canvas.alpha_composite(spr, (0, int(amp) + 4 + dy))
+        canvas.save(outdir / f"eco_{p:02d}.png")
     return outdir
 
 
