@@ -299,7 +299,32 @@ def assemble(scenes: list[dict], out: Path, workdir: Path) -> Path:
             vprev = f"[v{i}]"
         t0 += durs[i]
     vlast = vprev if vprev != "[0:v]" else "[0:v]"
-    base = 1 + ncap
+    # 4) mascote animado (loop PNG c/ alpha, janelas por cena)
+    bounds, t0 = [], 0.0
+    for i in range(n):
+        bounds.append((t0, t0 + durs[i]))
+        t0 += durs[i]
+    mparts, m_inputs = [], []
+    m_idx = 0
+    for i, sc in enumerate(scenes):
+        m = sc.get("mascot")
+        if not (m and Path(m["loopdir"], "eco_00.png").exists()):
+            continue
+        if not m_inputs:
+            m_inputs = ["-loop", "1", "-framerate", "6", "-i",
+                        str(Path(m["loopdir"], "eco_%02d.png"))]
+            m_idx = 1 + ncap
+        t0, t1 = bounds[i]
+        # trim: cadeia secundária só processa frames da janela (não o vídeo todo)
+        tag = f"m{i}"
+        # sem setpts: timestamps do loop preservados → overlay sincroniza pela
+        # timeline principal; fora da janela o trim dá EOF → eof_action=pass.
+        mparts.append(
+            f"[{m_idx}:v]trim=start={t0:.2f}:end={t1:.2f},"
+            f"scale={m['size']}:-1,format=rgba[{tag}];"
+            f"{vlast}[{tag}]overlay={m['x']}:{m['y']}:eof_action=pass[v{tag}]")
+        vlast = f"[v{tag}]"
+    base = 1 + ncap + (1 if m_inputs else 0)
     t0 = 0.0
     aparts = []
     for i in range(n):
@@ -307,8 +332,8 @@ def assemble(scenes: list[dict], out: Path, workdir: Path) -> Path:
         aparts.append(f"[{base + i}:0]adelay={ms}|{ms}[a{i}]")
         t0 += durs[i]
     afilter = ";".join(aparts) + ";" + "".join(f"[a{i}]" for i in range(n)) + f"amix=inputs={n}:normalize=0[aout]"
-    cmd = ["-i", str(vcat), *cap_inputs, *audios,
-           "-filter_complex", ";".join(vparts) + f";{vlast}null[vcat];{afilter}",
+    cmd = ["-i", str(vcat), *cap_inputs, *m_inputs, *audios,
+           "-filter_complex", ";".join(vparts + mparts) + f";{vlast}null[vcat];{afilter}",
            "-map", "[vcat]", "-map", "[aout]", "-threads", "8",
            "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
            "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",

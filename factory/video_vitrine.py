@@ -11,8 +11,15 @@ from PIL import Image, ImageDraw, ImageFont
 
 from . import config as C
 from . import render as R
+from .mascote import eco_loop
 from .video_chamada import qr_card
 from .video_cinetico import base_scene, handle_footer, short_name
+
+# Eco animado (coords saída 720x1280): capa canto sup-direito, cards sticker
+# na pílula, final à esquerda do QR. Longe da logo (centro) e das legendas.
+ECO_POS = {"cover": {"x": 560, "y": 235, "size": 150},
+           "card": {"x": 470, "y": 330, "size": 120},
+           "final": {"x": 20, "y": 500, "size": 130}}
 
 CREAM = (250, 243, 228)
 NAVY_INK = (18, 28, 60)
@@ -99,8 +106,8 @@ def cover_scene(seed: int, key: str = "v1", day: str = "2026-09-19",
     y = R.draw_center_text(bg, R.W // 2, y + 8, dateline, 40)
     R.paste_logo(bg, R.W // 2, 1200, 480)
     handle_footer(bg)
-    nar = (f"Achadinhos desta {wd.lower()}, parte {PART.get(key, 1)}! "
-           f"Três ofertas verificadas!")
+    nar = (f"Oi! Eu sou o Eco! Achadinhos desta {wd.lower()}, "
+           f"parte {PART.get(key, 1)}!")
     return bg, nar, "ACHADINHOS DO DIA"
 
 
@@ -121,15 +128,21 @@ def final_scene(seed: int) -> tuple[Image.Image, str, str]:
 def build(offers: list[dict], outdir: Path, key: str, seed_base: int,
           day: str = "2026-09-19", edition: int = 1) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
+    loopdir = eco_loop(outdir / f"eco_loop_{key}")
     parts = [cover_scene(seed_base, key, day, edition)] + \
             [card_scene(o, seed_base + 1 + i) for i, o in enumerate(offers)] + \
             [final_scene(seed_base + 5)]
+    roles = ["cover", "card", "card", "card", "final"]
     scenes = []
-    for i, (bg, nar, cap) in enumerate(parts):
+    for i, ((bg, nar, cap), role) in enumerate(zip(parts, roles)):
         png = outdir / f"{key}s{i+1}.png"
         bg.convert("RGB").save(png)
         mp3 = outdir / f"{key}s{i+1}.mp3"
         R.tts_save(nar, mp3)
-        scenes.append({"png": png, "mp3": mp3, "caption": cap})
+        item = {"png": png, "mp3": mp3}
+        if cap:
+            item["caption"] = cap
+        item["mascot"] = {**ECO_POS[role], "loopdir": str(loopdir)}
+        scenes.append(item)
     out = outdir / f"{key}-vitrine.mp4"
     return R.assemble(scenes, out, outdir / f"work_{key}")
