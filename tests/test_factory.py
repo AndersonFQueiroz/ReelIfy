@@ -48,3 +48,15 @@ def test_buffer_sem_chave_pula(monkeypatch):
     from factory import post_buffer
     monkeypatch.delenv("BUFFER_API_KEY", raising=False)
     assert post_buffer.main("2000-01-01") == 3
+
+
+def test_qc_bloqueia_sem_oferta(tmp_path, monkeypatch):
+    from factory import qc, config as C
+    monkeypatch.setattr(C, "FACTORY_DATA", tmp_path)
+    assert qc.main("2000-01-01") == 1
+
+
+def test_sanitize_narracao():
+    from factory.render import sanitize_narration
+    out = sanitize_narration("Olha 🔥 https://exemplo.com/x TOP!")
+    assert "🔥" not in out and "http" not in out and "TOP!" in out

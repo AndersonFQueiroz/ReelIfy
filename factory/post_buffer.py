@@ -41,7 +41,7 @@ def channels(token: str) -> dict[str, str]:
         raise RuntimeError("sem organizações no Buffer")
     found: dict[str, str] = {}
     for org in org_list:
-        chs = _gql(token, "query($o: ID!) { channels(input: {organizationId: $o}) { id name service } }",
+        chs = _gql(token, "query($o: OrganizationId!) { channels(input: {organizationId: $o}) { id name service } }",
                    {"o": org["id"]})
         for ch in (chs.get("channels") or []):
             svc = str(ch.get("service") or "").lower()
@@ -70,12 +70,16 @@ def create_post(token: str, channel_id: str, text: str, video_url: str, due_at: 
     raise RuntimeError(res.get("message", "erro desconhecido"))
 
 
-def main(day: str) -> int:
+def main(day: str, only: list[str] | None = None) -> int:
     from . import upload_public
     token = C.env("BUFFER_API_KEY")
     if not token:
         print("SEM BUFFER_API_KEY — auto-post pulado (exit 3).")
         return 3
+    keys = [k for k in ("v1", "v2", "v3") if not only or k in only]
+    if not keys:
+        print("Nada selecionado (--only vazio).")
+        return 1
     day_dir = C.FACTORY_DATA / day
     pack = json.loads((day_dir / "pack.json").read_text(encoding="utf-8"))
     try:
@@ -87,7 +91,8 @@ def main(day: str) -> int:
     if missing:
         print(f"Buffer: canais não conectados: {missing} (conecte 1x no painel)")
     ok, fail = 0, 0
-    for vi, key in enumerate(("v1", "v2", "v3")):
+    for key in keys:
+        h, m = SLOTS_UTC[{"v1": 0, "v2": 1, "v3": 2}[key]]
         url = upload_public.upload(Path(pack["videos"][key]))
         if not url:
             print(f"upload público falhou: {key}")
@@ -112,4 +117,8 @@ def main(day: str) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1]))
+    _day = sys.argv[1]
+    _only = None
+    if "--only" in sys.argv:
+        _only = sys.argv[sys.argv.index("--only") + 1].split(",")
+    raise SystemExit(main(_day, _only))

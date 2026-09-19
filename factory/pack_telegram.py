@@ -27,23 +27,31 @@ def main(day: str) -> int:
         return 3
     api = f"https://api.telegram.org/bot{token}"
     s = requests.Session()
-    head = (f"📦 *Pack 3 vídeos — {pack['day']}*\n{pack['title']}\n"
-            f"🔗 {pack['affiliate_url']}")
-    s.post(f"{api}/sendMessage", json={"chat_id": chat, "text": head,
-                                       "parse_mode": "Markdown",
-                                       "disable_web_page_preview": True}, timeout=30).raise_for_status()
+    msg_ids: dict[str, int] = {}
+
+    def _send(payload: dict, files: dict | None = None) -> int:
+        if files:
+            r = s.post(f"{api}/sendVideo", data=payload, files=files, timeout=180)
+        else:
+            r = s.post(f"{api}/sendMessage", json=payload, timeout=30)
+        r.raise_for_status()
+        return r.json()["result"]["message_id"]
+
+    msg_ids["header"] = _send({"chat_id": chat, "text": head, "parse_mode": "Markdown",
+                               "disable_web_page_preview": True}) if (head := (
+        f"📦 *Pack 3 vídeos — {pack['day']}*\n{pack['title']}\n"
+        f"🔗 {pack['affiliate_url']}")) else 0
     for key, label in ORDER:
         vpath = pack["videos"][key]
         with open(vpath, "rb") as f:
-            s.post(f"{api}/sendVideo",
-                   data={"chat_id": chat,
-                         "caption": f"{label}\n\n{pack['caption'][:900]}"},
-                   files={"video": (Path(vpath).name, f, "video/mp4")},
-                   timeout=180).raise_for_status()
-    s.post(f"{api}/sendMessage",
-           json={"chat_id": chat,
-                 "text": f"📌 *Texto do 1º comentário* (colar após postar):\n{pack['first_comment']}"},
-           timeout=30).raise_for_status()
+            msg_ids[key] = _send(
+                {"chat_id": chat, "caption": f"{label}\n\n{pack['caption'][:900]}"},
+                {"video": (Path(vpath).name, f, "video/mp4")})
+    msg_ids["comment"] = _send(
+        {"chat_id": chat,
+         "text": f"📌 *Texto do 1º comentário* (colar após postar):\n{pack['first_comment']}"})
+    pack["telegram_msg_ids"] = msg_ids
+    (day_dir / "pack.json").write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding="utf-8")
     print("Pack entregue no Telegram.")
     return 0
 

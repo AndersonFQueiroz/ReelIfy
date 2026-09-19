@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from . import config as C
-from . import oferta_do_dia, pack_redes, pack_telegram, post_buffer, video_cinetico, video_ia
+from . import oferta_do_dia, pack_redes, pack_telegram, qc, video_cinetico, video_ia
 
 T0 = time.time()
 
@@ -43,14 +43,15 @@ def main(argv: list[str]) -> int:
             return 1
     pack = pack_redes.build_pack(day_dir, {"v1": v1, "v2": v2, "v3": v3})
     log(f"Pack: {pack.name}")
+    log("Portão QC...")
+    if qc.main(day) != 0:
+        log("QC FALHOU — nada enviado. Corrija e rode de novo.")
+        return 1
+    # Buffer SÓ com aprovação explícita do dono (fluxo: aprova.py). Nunca auto.
     rc_tg = pack_telegram.main(day)
-    log(f"Telegram rc={rc_tg} (cobre Kwai + backup)")
-    log("Auto-post Buffer (IG/TikTok/YouTube)...")
-    rc_buf = post_buffer.main(day)
-    log(f"Buffer rc={rc_buf}")
-    rc = 0 if rc_buf in (0, 3) else rc_buf
-    log(f"FIM rc={rc}")
-    return rc
+    log(f"Telegram rc={rc_tg} (aguardando aprovação do dono)")
+    log(f"FIM rc={rc_tg}")
+    return 0 if rc_tg in (0, 3) else rc_tg
 
 
 if __name__ == "__main__":

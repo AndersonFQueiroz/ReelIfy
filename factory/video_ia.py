@@ -13,6 +13,11 @@ from . import config as C
 from . import render as R
 from .video_cinetico import base_scene, clean_title, handle_footer, price_card, short_name
 
+HOOKS_V1 = ["{hook} {name}, com {disc} por cento de desconto!",
+            "Para tudo que eu achei isso aqui: {name} com {disc} por cento de desconto!",
+            "Olha o que eu garimpei hoje: {name}, {disc} por cento mais barato!"]
+
+
 PROMPT_TPL = (
     "POV shot, a woman's hands {action} in a bright modern home, "
     "photorealistic, smooth natural motion, vertical video"
@@ -46,7 +51,7 @@ def _photo_scene(photo: Path, seed: int, title_top: str | None = None) -> Image.
     y = 300
     if title_top:
         y = R.draw_center_text(bg, R.W // 2, y, title_top, 46, fill=R.WHITE, bold=True) + 30
-    box_h = 980 if title_top else 1180
+    box_h = 860 if title_top else 1000
     bg.alpha_composite(R.fit_photo(photo, 880, box_h).convert("RGBA"), (100, y))
     handle_footer(bg)
     return bg
@@ -55,6 +60,8 @@ def _photo_scene(photo: Path, seed: int, title_top: str | None = None) -> Image.
 def build(offer: dict, outdir: Path) -> tuple[Path, str]:
     """Retorna (mp4, modo: 'ia' ou 'pov')."""
     outdir.mkdir(parents=True, exist_ok=True)
+    import datetime as _dt
+    off = _dt.date.fromisoformat(offer.get('day', '2026-01-01')).toordinal() % 50
     name = short_name(offer["title"])
     ben = offer.get("benefits") or []
     photos = [Path(p) for p in offer["photos_local"]]
@@ -69,15 +76,16 @@ def build(offer: dict, outdir: Path) -> tuple[Path, str]:
 
     scenes = []
     # S1 hook
-    bg = base_scene(31)
+    bg = base_scene(31 + off)
     y = R.draw_display(bg, R.W // 2, 480, f"-{offer['discount_pct']}% HOJE", 110,
                        accent=f"{offer['discount_pct']}%")
-    bg.alpha_composite(R.fit_photo(photos[0], 840, 640).convert("RGBA"), (120, y + 50))
-    R.draw_center_text(bg, R.W // 2, y + 740, name, 44, fill=R.WHITE, bold=True)
+    photo_top = y + 50
+    bg.alpha_composite(R.fit_photo(photos[0], 840, 640).convert("RGBA"), (120, photo_top))
+    R.draw_center_text(bg, R.W // 2, photo_top + 680, name, 44, fill=R.WHITE, bold=True)
     handle_footer(bg)
     p1 = outdir / "v1s1.png"
     bg.convert("RGB").save(p1)
-    scenes.append((p1, f"{offer['hook']} {name}, com {offer['discount_pct']} por cento de desconto!",
+    scenes.append((p1, HOOKS_V1[off % 3].format(hook=offer["hook"], name=name, disc=offer["discount_pct"]),
                    f"🔥 -{offer['discount_pct']}% HOJE"))
     # S2/S3: clip IA ou foto
     for i, (txt, cap) in enumerate([
@@ -86,16 +94,16 @@ def build(offer: dict, outdir: Path) -> tuple[Path, str]:
     ]):
         if use_ai:
             png = outdir / f"v1s{i+2}.png"
-            _photo_scene(photos[min(i, len(photos) - 1)], 32 + i).convert("RGB").save(png)
+            _photo_scene(photos[min(i, len(photos) - 1)], 32 + i + off).convert("RGB").save(png)
             scenes.append((png, txt, cap, [ai1, ai2][i]))
         else:
             png = outdir / f"v1s{i+2}.png"
-            _photo_scene(photos[min(i, len(photos) - 1)], 32 + i).convert("RGB").save(png)
+            _photo_scene(photos[min(i, len(photos) - 1)], 32 + i + off).convert("RGB").save(png)
             scenes.append((png, txt, cap))
     # S4 preço + CTA
-    bg = base_scene(34)
+    bg = base_scene(34 + off)
     y = R.draw_center_text(bg, R.W // 2, 420, f"De {offer['original_label']} por", 54, fill=R.MUTED, bold=True)
-    y = price_card(bg, y + 10, offer["original_label"], offer["price_label"])
+    y = price_card(bg, y + 10, offer)
     R.draw_center_text(bg, R.W // 2, y + 40, "Link com desconto tá no canal,\ncorre que acaba!", 50, fill=R.WHITE)
     handle_footer(bg)
     p4 = outdir / "v1s4.png"

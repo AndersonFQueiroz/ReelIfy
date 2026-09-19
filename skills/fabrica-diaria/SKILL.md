@@ -10,9 +10,15 @@ Ao receber o trigger: **executar direto, sem perguntas**. Orquestrador: `python3
 2. `factory/video_ia.py` → **Vídeo 1 "POV mulher apresentando"** (roteiro §Roteiro V1).
 3. `factory/video_cinetico.py` → **Vídeo 2 "Oferta relâmpago"** + **Vídeo 3 "Top achadinho"** (100% locais).
 4. `factory/pack_redes.py` → valida e monta `pack.json` (legendas, hashtags, link afiliado, 1º comentário, capas).
-5. `factory/pack_telegram.py` → entrega no privado do dono: 3 mp4 + capa + legenda + link.
-6. `factory/post_buffer.py` → auto-post IG + TikTok + YouTube via Buffer
-   (requer `BUFFER_API_KEY`; sem chave pula sem erro; Kwai sempre manual).
+5. `factory/qc.py` → **PORTÃO OBRIGATÓRIO**: specs mp4, narração auditada, oferta ≥5% + afiliado. Falhou = nada é enviado.
+6. `factory/pack_telegram.py` → entrega no privado do dono (salva `message_id` p/ apagar reprovado).
+7. **Buffer SÓ com aprovação explícita do dono aqui no chat** (`post_buffer --only v1,v3`). Nunca automático.
+
+## Fluxo de aprovação (travado)
+- "3 videos" → gero e mando **só no Telegram**. Nada no Buffer.
+- Dono revisa e fala aqui: "aprovado v1 v3, refaz v2 sem X".
+- Reprovado: apago do chat (`deleteMessage` via `telegram_msg_ids`) e refaço.
+- Aprovado: posto no Buffer + dono posta no Kwai na mão.
 
 ## Setup único do dono (5 min, 1x)
 Conta grátis no buffer.com (3 canais) → conectar Instagram + TikTok + YouTube

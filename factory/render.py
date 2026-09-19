@@ -17,6 +17,7 @@ from . import config as C
 W, H = 1080, 1920          # layout PIL (textos nítidos)
 OUT_W, OUT_H = 720, 1280  # mp4 final (re-encode cabe; Reels aceita 720p)
 FPS = 30
+SCENE_PAD = 0.7  # respiro após cada narração
 NAVY_TOP = (13, 27, 62)
 NAVY_BOT = (6, 12, 34)
 CYAN = (34, 211, 238)
@@ -34,6 +35,13 @@ def safe_text(text: str) -> str:
     for k, v in _EMOJI_FIX.items():
         text = text.replace(k, v)
     text = _EMOJI_RE.sub("", text)
+    return " ".join(text.split())
+
+
+def sanitize_narration(text: str) -> str:
+    """Texto que a voz vai ler: sem emoji, URL ou formatação."""
+    text = safe_text(text)
+    text = __import__("re").sub(r"https?://\S+", "", text)
     return " ".join(text.split())
 
 
@@ -181,12 +189,14 @@ def probe_dur(path: Path) -> float:
 
 def tts_save(text: str, out: Path, voice: str | None = None) -> float:
     """TTS Edge → mp3. Retorna duração. Tenta vozes em cascata."""
+    text = sanitize_narration(text)
+    Path(out).with_suffix(".txt").write_text(text, encoding="utf-8")
     voices = [voice or C.VOICE_MAIN, *C.VOICE_FALLBACKS]
     last: Exception | None = None
     for v in dict.fromkeys(voices):
         try:
             subprocess.run(
-                ["python3", "-m", "edge_tts", "--voice", v, "--rate", "+0%",
+                ["python3", "-m", "edge_tts", "--voice", v, "--rate=-5%",
                  "--text", text, "--write-media", str(out)],
                 capture_output=True, text=True, timeout=120, check=True)
             if out.exists() and out.stat().st_size > 1000:
@@ -220,7 +230,7 @@ def assemble(scenes: list[dict], out: Path, workdir: Path) -> Path:
     scenes: [{png, mp3, caption}] caption aparece durante a cena.
     """
     workdir.mkdir(parents=True, exist_ok=True)
-    durs = [probe_dur(Path(sc["mp3"])) + 0.45 for sc in scenes]
+    durs = [probe_dur(Path(sc["mp3"])) + SCENE_PAD for sc in scenes]
     n = len(scenes)
     # 1) cenas → clips (encode rápido; concat depois é stream-copy)
     clip_paths = []

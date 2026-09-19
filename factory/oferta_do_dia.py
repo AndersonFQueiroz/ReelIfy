@@ -91,12 +91,13 @@ def _shopee_candidate(s: requests.Session) -> dict | None:
     sales = n.get("sales") or 0
     benefits = []
     try:
-        if float(n.get("ratingStar") or 0) >= 4.5:
-            benefits.append(f"★ {float(n['ratingStar']):.1f} de avaliação")
+        r = float(n.get("ratingStar") or 0)
+        if r >= 4.5:
+            benefits.append(f"Nota {f'{r:.1f}'.replace('.', ',')} de avaliação")
     except (TypeError, ValueError):
         pass
     if sales and int(sales) >= 100:
-        benefits.append(f"+{int(sales)} vendidos")
+        benefits.append(f"+{int(sales):,}".replace(",", ".") + " vendidos")
     return {
         "marketplace": "shopee", "external_id": str(n.get("itemId")),
         "title": str(n.get("productName") or "Oferta Shopee"),
