@@ -83,7 +83,7 @@ def main(day: str) -> int:
             fail(f"narração {txt.name}: emoji")
         if "http" in t:
             fail(f"narração {txt.name}: URL")
-        if len(t.split()) > 40:
+        if len(t.split()) > 55:
             fail(f"narração {txt.name}: longa ({len(t.split())} palavras)")
     if _ERRORS:
         print(f"QC: {len(_ERRORS)} falha(s) — ENVIO BLOQUEADO.")

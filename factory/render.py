@@ -207,7 +207,7 @@ def tts_save(text: str, out: Path, voice: str | None = None) -> float:
     for v in dict.fromkeys(voices):
         try:
             subprocess.run(
-                ["python3", "-m", "edge_tts", "--voice", v, "--rate=-5%",
+                ["python3", "-m", "edge_tts", "--voice", v, "--rate=+10%",
                  "--text", text, "--write-media", str(out)],
                 capture_output=True, text=True, timeout=120, check=True)
             if out.exists() and out.stat().st_size > 1000:

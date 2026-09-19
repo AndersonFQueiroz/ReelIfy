@@ -85,9 +85,17 @@ def eco_png(size: int = 800, dest: Path | None = None) -> Image.Image:
     return img
 
 
+def _clean(sprite: Image.Image) -> Image.Image:
+    """Apaga o brilho Gemini do canto inferior direito."""
+    d = ImageDraw.Draw(sprite)
+    w, h = sprite.size
+    d.rectangle([w*0.84, h*0.84, w, h], fill=(sprite.getpixel((0, 0))[:3] + (255,)))
+    return sprite
+
+
 def _badge(sprite: Image.Image, size: int) -> Image.Image:
     """Recorta círculo no personagem + anel cyan + fundo transparente."""
-    sprite = sprite.convert("RGBA")
+    sprite = _clean(sprite.convert("RGBA"))
     # fundo chapado → alpha (floodfill dos 4 cantos)
     bg = sprite.getpixel((0, 0))[:3]
     for corner in [(0, 0), (sprite.width - 1, 0), (0, sprite.height - 1),
@@ -118,7 +126,7 @@ def _badge(sprite: Image.Image, size: int) -> Image.Image:
 
 def _float(sprite: Image.Image, size: int) -> Image.Image:
     """Só o personagem (contorno branco sticker separa do fundo)."""
-    sprite = sprite.convert("RGBA")
+    sprite = _clean(sprite.convert("RGBA"))
     for corner in [(0, 0), (sprite.width - 1, 0), (0, sprite.height - 1),
                    (sprite.width - 1, sprite.height - 1)]:
         ImageDraw.floodfill(sprite, corner, (0, 0, 0, 0), thresh=60)

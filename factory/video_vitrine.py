@@ -75,13 +75,14 @@ def photo_shadow(base: Image.Image, photo: Path, cx_top: tuple[int, int], w: int
 
 def card_scene(offer: dict, seed: int) -> tuple[Image.Image, str, str | None]:
     name = short_name(offer["title"])
+    ben = (offer.get("benefits") or ["oferta verificada hoje"])[0]
     bg = base_scene(seed)
     y = spaced_kicker(bg, R.W // 2, 300, name)
     y = price_pill(bg, R.W // 2, y + 30, offer["price_label"])
     photo = Path(offer["photos_local"][0])
     photo_shadow(bg, photo, ((R.W - 860) // 2, y + 40), 860, 820)
     handle_footer(bg)
-    nar = f"{name}, {offer['price_label']}, link no canal!"
+    nar = f"{name}, de {offer['original_label']} por apenas {offer['price_label']}! {ben} Link no canal, corre que acaba!"
     return bg, nar, None  # sem legenda queimada: preço/nome já estão no card
 
 
@@ -108,7 +109,7 @@ def cover_scene(seed: int, key: str = "v1", day: str = "2026-09-19",
     R.paste_logo(bg, R.W // 2, 1200, 480)
     handle_footer(bg)
     nar = (f"Oi! Eu sou o Eco! Achadinhos desta {wd.lower()}, "
-           f"parte {PART.get(key, 1)}!")
+           f"parte {PART.get(key, 1)}! Três ofertas que eu garimpei pra tu economizar!")
     return bg, nar, "ACHADINHOS DO DIA"
 
 
@@ -123,7 +124,8 @@ def final_scene(seed: int) -> tuple[Image.Image, str, str]:
     R.draw_center_text(bg, R.W // 2, y + 40 + card.height + 30,
                        "Aponta a câmera. É de graça!", 50, fill=R.WHITE, bold=True)
     handle_footer(bg)
-    return bg, "Aponta a câmera pro código e entra no canal. É de graça! Te espero lá.", "ENTRA NO CANAL »"
+    return bg, ("Gostou? Aponta a câmera pro código e entra no canal, que é de graça! "
+                "Amanhã tem mais achadinhos, te espero lá!"), "ENTRA NO CANAL »"
 
 
 def build(offers: list[dict], outdir: Path, key: str, seed_base: int,
