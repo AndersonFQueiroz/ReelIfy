@@ -1,0 +1,43 @@
+"""Testes da fábrica diária (sem rede, sem segredos)."""
+import json
+
+import pytest
+
+from factory import render as R
+from factory.video_cinetico import clean_title, short_name
+
+
+def test_safe_text_tira_emoji_mantem_texto():
+    out = R.safe_text("🔥 -48% HOJE 👇 @cacaofertasofcbr")
+    assert "🔥" not in out and "👇" not in out
+    assert "-48% HOJE" in out and "@cacaofertasofcbr" in out
+
+
+def test_safe_text_idempotente():
+    assert R.safe_text(R.safe_text("✓ 5L • Frete")) == R.safe_text("✓ 5L • Frete")
+
+
+def test_clean_title():
+    assert clean_title("*OLHA ESSE PREÇO* 🔥👀") == "OLHA ESSE PREÇO"
+
+
+def test_short_name_preserva_frase():
+    assert short_name("*TÁ DE GRAÇA, GENTE* 😱🤩") == "TÁ DE GRAÇA, GENTE"
+
+
+def test_pack_barra_sem_link(tmp_path, monkeypatch):
+    from factory import pack_redes
+    day = tmp_path / "d"
+    day.mkdir()
+    (day / "offer.json").write_text(json.dumps({
+        "day": "2026-09-19", "title": "X", "price": 10, "original_price": 20,
+        "discount_pct": 50, "marketplace": "shopee", "affiliate_url": "",
+        "original_label": "R$ 20", "price_label": "R$ 10"}))
+    with pytest.raises(SystemExit) as exc:
+        pack_redes.build_pack(day, {})
+    assert exc.value.code == 2
+
+
+def test_out_specs():
+    assert (R.OUT_W, R.OUT_H) == (720, 1280)
+    assert R.FPS == 30
