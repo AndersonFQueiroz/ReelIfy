@@ -80,6 +80,17 @@ def make_bg(seed: int = 7) -> Image.Image:
     return Image.composite(bg, black, vig)
 
 
+def paste_logo(base: Image.Image, cx: int, cy: int, size: int) -> None:
+    """Logo centralizada. Se não houver alpha, aplica máscara circular."""
+    logo = Image.open(C.LOGO).convert("RGBA").resize((size, size), Image.LANCZOS)
+    alpha = logo.getchannel("A")
+    if alpha.getextrema()[0] > 250:
+        mask = Image.new("L", (size, size), 0)
+        ImageDraw.Draw(mask).ellipse([8, 8, size - 8, size - 8], fill=255)
+        logo.putalpha(mask)
+    base.alpha_composite(logo, (cx - size // 2, cy - size // 2))
+
+
 def shear_text_layer(layer: Image.Image, angle_deg: float = 12) -> Image.Image:
     """Itálico falso: cisalha a camada de texto."""
     m = math.tan(math.radians(angle_deg))
@@ -215,7 +226,7 @@ def caption_png(text: str, out: Path) -> None:
     h = sum(tmp.textbbox((0, 0), l, font=txt)[3] + 12 for l in lines) + 40
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle([0, 0, w, h], radius=24, fill=(4, 8, 22, 210))
+    d.rounded_rectangle([0, 0, w, h], radius=24, fill=(4, 8, 22, 255))
     y = 22
     for l in lines:
         bb = d.textbbox((0, 0), l, font=txt)

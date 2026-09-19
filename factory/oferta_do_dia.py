@@ -1,12 +1,7 @@
-"""Oferta do dia: escolhe 1 produto + links de afiliado (independente do bot/LG).
+"""Oferta do dia: TOP 9 distintos (3 vídeos × 3 produtos). Nunca repete (usados.json).
 
-Fontes:
-1. Shopee Affiliate Open API (productOfferV2) → offerLink pronto. (requer SHOPEE_APP_ID/SECRET)
-2. Fallback: canal t.me/s/cacaofertasofcBR → reaproveita post real do bot (foto + link + preços).
-
-ML direto: api.mercadolibre.com retorna 403 desta rede → fora do v1.
-
-REGRA DURA: sem affiliate_url válido o pipeline PARA (exit 2).
+Fontes: Shopee Affiliate API (ordenado por desconto) → fallback canal (posts distintos).
+ML direto fora (403 desta rede).
 Uso: python3 -m factory.oferta_do_dia [--date AAAA-MM-DD]
 """
 from __future__ import annotations
@@ -28,6 +23,7 @@ _TIMEOUT = 25
 _CHANNEL = C.env("TELEGRAM_CHANNEL_PREVIEW", "cacaofertasofcBR")
 _PRICE_RE = re.compile(r"R\$\s*([\d.]+)")
 _LINK_RE = re.compile(r"https?://[^\s)>\]]+")
+NEED = 9
 
 
 def _day_dir(day: str) -> Path:
@@ -47,14 +43,10 @@ def load_usados() -> set[str]:
         return set()
 
 
-def mark_usado(key: str) -> None:
+def mark_usados(keys: list[str]) -> None:
     u = load_usados()
-    u.add(key)
+    u.update(keys)
     _usados_path().write_text(json.dumps(sorted(u), ensure_ascii=False, indent=1), encoding="utf-8")
-
-
-def offer_key(offer: dict) -> str:
-    return str(offer.get("affiliate_url") or offer.get("external_id"))
 
 
 def _session() -> requests.Session:
@@ -63,126 +55,121 @@ def _session() -> requests.Session:
     return s
 
 
-# ---------------- Shopee ----------------
-
-def _shopee_graphql(s: requests.Session, query: str) -> dict:
-    app_id, secret = C.env("SHOPEE_APP_ID"), C.env("SHOPEE_SECRET")
-    base = C.env("SHOPEE_API_BASE", "https://open-api.affiliate.shopee.com.br")
-    if not (app_id and secret):
-        raise RuntimeError("sem credenciais Shopee")
-    body = json.dumps({"query": query})
-    ts = int(time.time())
-    sign = hashlib.sha256((app_id + str(ts) + body + secret).encode()).hexdigest()
-    r = s.post(base.rstrip("/") + "/graphql", data=body.encode(),
-               headers={"Content-Type": "application/json",
-                        "Authorization": f"SHA256 Credential={app_id}, Signature={sign}, Timestamp={ts}"},
-               timeout=_TIMEOUT)
-    r.raise_for_status()
-    data = r.json()
-    if data.get("errors"):
-        raise RuntimeError(str(data["errors"][0].get("message")))
-    return data.get("data", {})
-
-
-def _shopee_candidate(s: requests.Session) -> dict | None:
-    fields = "productName itemId priceMin priceMax imageUrl productLink offerLink ratingStar sales"
-    try:
-        data = _shopee_graphql(
-            s, "{ productOfferV2(page: 1, limit: 50) { nodes { %s } } }" % fields)
-    except Exception as exc:
-        print(f"Shopee indisponível: {exc}")
-        return None
-    nodes = ((data.get("productOfferV2") or {}).get("nodes")) or []
-    usados = load_usados()
-    scored = []
-    for n in nodes:
-        try:
-            lo, hi = float(n.get("priceMin") or 0), float(n.get("priceMax") or 0)
-        except (TypeError, ValueError):
-            continue
-        if not lo or not hi or hi <= lo or not n.get("offerLink") or not n.get("imageUrl"):
-            continue
-        disc = 1 - lo / hi
-        if disc < 0.05 or str(n.get("offerLink")) in usados:
-            continue
-        scored.append((disc, n, lo, hi))
-    if not scored:
-        return None
-    scored.sort(key=lambda t: (t[0], t[2]), reverse=True)
-    best = {"_disc": scored[0][0], "node": scored[0][1], "price": scored[0][2], "orig": scored[0][3]}
-    if not best:
-        return None
-    n = best["node"]
-    sales = n.get("sales") or 0
-    benefits = []
+def _benefits_shopee(n: dict) -> list[str]:
+    out = []
     try:
         r = float(n.get("ratingStar") or 0)
         if r >= 4.5:
-            benefits.append(f"Nota {f'{r:.1f}'.replace('.', ',')} de avaliação")
+            out.append(f"Nota {f'{r:.1f}'.replace('.', ',')} de avaliação")
     except (TypeError, ValueError):
         pass
-    if sales and int(sales) >= 100:
-        benefits.append(f"+{int(sales):,}".replace(",", ".") + " vendidos")
-    return {
-        "marketplace": "shopee", "external_id": str(n.get("itemId")),
-        "title": str(n.get("productName") or "Oferta Shopee"),
-        "price": best["price"], "original_price": best["orig"],
-        "discount_pct": round(best["_disc"] * 100),
-        "affiliate_url": str(n["offerLink"]),
-        "photos": [str(n["imageUrl"])], "benefits": benefits[:3],
-    }
+    try:
+        sales = int(n.get("sales") or 0)
+        if sales >= 100:
+            out.append(f"+{sales:,}".replace(",", ".") + " vendidos")
+    except (TypeError, ValueError):
+        pass
+    return out[:2]
 
 
-# ---------------- Fallback: canal ----------------
+def _shopee_candidates(s: requests.Session, need: int, usados: set[str]) -> list[dict]:
+    app_id, secret = C.env("SHOPEE_APP_ID"), C.env("SHOPEE_SECRET")
+    base = C.env("SHOPEE_API_BASE", "https://open-api.affiliate.shopee.com.br")
+    if not (app_id and secret):
+        print("Shopee: sem credenciais")
+        return []
+    fields = "productName itemId priceMin priceMax imageUrl productLink offerLink ratingStar sales"
+    scored = []
+    for page in (1, 2):
+        body = json.dumps({"query":
+            "{ productOfferV2(page: %d, limit: 50) { nodes { %s } } }" % (page, fields)})
+        ts = int(time.time())
+        sign = hashlib.sha256((app_id + str(ts) + body + secret).encode()).hexdigest()
+        try:
+            r = s.post(base.rstrip("/") + "/graphql", data=body.encode(),
+                       headers={"Content-Type": "application/json",
+                                "Authorization": f"SHA256 Credential={app_id}, Signature={sign}, Timestamp={ts}"},
+                       timeout=_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            if data.get("errors"):
+                print(f"Shopee erro: {data['errors'][0].get('message')}")
+                break
+            nodes = ((data.get("data", {}).get("productOfferV2") or {}).get("nodes")) or []
+        except Exception as exc:
+            print(f"Shopee falhou p{page}: {exc}")
+            break
+        for n in nodes:
+            try:
+                lo, hi = float(n.get("priceMin") or 0), float(n.get("priceMax") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not lo or not hi or hi <= lo or not n.get("offerLink") or not n.get("imageUrl"):
+                continue
+            disc = 1 - lo / hi
+            if disc < 0.05 or str(n["offerLink"]) in usados:
+                continue
+            scored.append((disc, lo, {
+                "marketplace": "shopee", "external_id": str(n.get("itemId")),
+                "title": str(n.get("productName") or "Oferta Shopee")[:90],
+                "price": lo, "original_price": hi, "discount_pct": round(disc * 100),
+                "affiliate_url": str(n["offerLink"]), "photos": [str(n["imageUrl"])],
+                "benefits": _benefits_shopee(n)}))
+        if len(scored) >= need * 2:
+            break
+    scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    out, seen = [], set()
+    for _, _, o in scored:
+        if o["affiliate_url"] in seen:
+            continue
+        seen.add(o["affiliate_url"])
+        out.append(o)
+        if len(out) == need:
+            break
+    return out
 
-def _channel_candidate(s: requests.Session) -> dict | None:
+
+def _channel_candidates(s: requests.Session, need: int, usados: set[str]) -> list[dict]:
     try:
         r = s.get(f"https://t.me/s/{_CHANNEL}", timeout=_TIMEOUT)
         r.raise_for_status()
         page = r.text
     except Exception as exc:
         print(f"Canal indisponível: {exc}")
-        return None
+        return []
     blocks = re.findall(
         r'<div class="tgme_widget_message_wrap[^>]*>(.*?)<span class="tgme_widget_message_meta">',
         page, re.S)
-    usados = load_usados()
     cands = []
-    for block in reversed(blocks[-15:]):
+    for block in reversed(blocks[-20:]):
         text_m = re.search(r'<div class="tgme_widget_message_text[^>]*>(.*?)</div>', block, re.S)
         if not text_m:
             continue
         raw = re.sub(r"<br\s*/?>", "\n", text_m.group(1))
-        raw = re.sub(r"<[^>]+>", "", raw)
-        text = _html.unescape(raw).strip()
+        text = _html.unescape(re.sub(r"<[^>]+>", "", raw)).strip()
         links = [l for l in _LINK_RE.findall(text + " " + block)
                  if "t.me/" not in l and "telegram" not in l]
         photo_m = re.search(r"background-image:url\('([^']+)'\)", block)
         prices = [float(p.replace(".", "")) for p in _PRICE_RE.findall(text)]
         if not (links and photo_m and len(prices) >= 1):
             continue
-        price = min(prices)
-        orig = max(prices) if len(prices) >= 2 else price
+        price, orig = min(prices), max(prices) if len(prices) >= 2 else min(prices)
         disc = round((1 - price / orig) * 100) if orig > price else 0
-        if disc < 5:
-            continue  # sem desconto real → próximo post
+        if disc < 5 or links[0] in usados:
+            continue
         title = next((l.strip() for l in text.splitlines() if len(l.strip()) > 12), "Oferta do canal")[:90]
         market = "mercadolivre" if "mercadolivre" in links[0] or "meli." in links[0] else "shopee"
-        cand = {
+        if any(c["affiliate_url"] == links[0] for _, c in cands):
+            continue
+        cands.append((disc, {
             "marketplace": market, "external_id": f"canal-{hash(links[0]) & 0xffff}",
-            "title": title, "price": price, "original_price": orig,
-            "discount_pct": disc, "affiliate_url": links[0],
-            "photos": [_html.unescape(photo_m.group(1))], "benefits": [],
-        }
-        if links[0] not in usados:
-            cands.append((disc, cand))
-    if not cands:
-        return None
+            "title": title, "price": price, "original_price": orig, "discount_pct": disc,
+            "affiliate_url": links[0], "photos": [_html.unescape(photo_m.group(1))], "benefits": []}))
+        if len(cands) == need:
+            break
     cands.sort(key=lambda t: t[0], reverse=True)
-    return cands[0][1]
+    return [c for _, c in cands]
 
-
-# ---------------- main ----------------
 
 def _download(s: requests.Session, url: str, dest: Path) -> bool:
     try:
@@ -201,39 +188,51 @@ def _brl(v: float) -> str:
 def main(argv: list[str]) -> int:
     day = argv[0] if argv and len(argv[0]) == 10 else _dt.date.today().isoformat()
     outdir = _day_dir(day)
+    if "--fresh" not in argv and (outdir / "offers_day.json").exists():
+        print(f"Ofertas de {day} já existem — reuse (use --fresh p/ trocar).")
+        return 0
     s = _session()
+    usados = load_usados()
 
-    offer = _shopee_candidate(s)
+    offers = _shopee_candidates(s, NEED, usados)
     origem = "shopee-api"
-    if not offer:
-        print("Shopee sem oferta válida → fallback canal.")
-        offer = _channel_candidate(s)
-        origem = "canal"
-    if not offer:
-        print("FALHA: nenhuma oferta (Shopee + canal).", file=sys.stderr)
+    if len(offers) < 3:
+        print(f"Shopee rendeu {len(offers)} → completando com canal.")
+        got = {o["affiliate_url"] for o in offers}
+        for c in _channel_candidates(s, NEED, usados | got):
+            offers.append(c)
+            if len(offers) >= NEED:
+                break
+        origem = "mista" if offers else "canal"
+    if len(offers) < 3:
+        print("FALHA: menos de 3 ofertas distintas.", file=sys.stderr)
         return 1
-    if not offer.get("affiliate_url"):
-        print("FALHA DURA: oferta sem link de afiliado — pipeline parado.", file=sys.stderr)
-        return 2
 
-    photos_local: list[str] = []
-    for i, url in enumerate(offer["photos"][:3]):
+    offers = offers[:NEED]
+    for i, o in enumerate(offers):
         dest = outdir / f"foto{i+1}.jpg"
-        if _download(s, url, dest):
-            photos_local.append(str(dest))
-    if not photos_local:
-        print("FALHA: nenhuma foto pôde ser baixada.", file=sys.stderr)
+        if _download(s, o["photos"][0], dest):
+            o["photos_local"] = [str(dest)]
+        else:
+            o["photos_local"] = []
+    offers = [o for o in offers if o["photos_local"]]
+    if len(offers) < 3:
+        print("FALHA: fotos insuficientes.", file=sys.stderr)
         return 1
-
-    offer.update({"photos_local": photos_local, "day": day, "origem": origem,
-                  "price_label": _brl(offer["price"]),
-                  "original_label": _brl(offer["original_price"]),
-                  "hook": "Para tudo que eu achei isso aqui!"})
-    mark_usado(offer_key(offer))
-    (outdir / "offer.json").write_text(json.dumps(offer, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(json.dumps({"ok": True, "origem": origem, "title": offer["title"][:60],
-                      "discount": offer["discount_pct"], "marketplace": offer["marketplace"],
-                      "affiliate": offer["affiliate_url"][:70]}, ensure_ascii=False))
+    for o in offers:
+        o.update({"day": day, "price_label": _brl(o["price"]),
+                  "original_label": _brl(o["original_price"])})
+    mark_usados([o["affiliate_url"] for o in offers])
+    groups = {"v1": offers[0:3], "v2": offers[3:6], "v3": offers[6:9]}
+    groups = {k: v for k, v in groups.items() if len(v) == 3}
+    if not groups:
+        print("FALHA: sem trio completo.", file=sys.stderr)
+        return 1
+    (outdir / "offers_day.json").write_text(
+        json.dumps({"day": day, "origem": origem, "groups": groups}, ensure_ascii=False, indent=1),
+        encoding="utf-8")
+    for k, v in groups.items():
+        print(f"{k}: " + " | ".join(f"{o['title'][:30]} -{o['discount_pct']}%" for o in v))
     return 0
 
 

@@ -1,10 +1,4 @@
-"""Portão de qualidade: bloqueia o envio ao Telegram se algo estiver fora do padrão.
-
-Checa: specs do mp4 (720x1280, h264+aac, 15-90s, >100KB), oferta
-(desconto >=5%, afiliado válido), pack (legenda com link, vídeos existem),
-narração (texto auditável, sem emoji/URL).
-Uso: python3 -m factory.qc --date AAAA-MM-DD | exit 0 ok / 1 falha
-"""
+"""Portão de qualidade: 9 links distintos + specs + narração. Bloqueia envio se falhar."""
 from __future__ import annotations
 
 import json
@@ -43,7 +37,6 @@ def check_video(key: str, path: Path) -> None:
     dur = float((info.get("format") or {}).get("duration") or 0)
     if not 15 <= dur <= 90:
         fail(f"{key}: duração {dur:.1f}s fora de 15-90s")
-    streams = {(s.get("codec_type"), s.get("codec_name")) for s in info.get("streams", [])}
     v = next((s for s in info.get("streams", []) if s.get("codec_type") == "video"), {})
     a = next((s for s in info.get("streams", []) if s.get("codec_type") == "audio"), {})
     if (v.get("width"), v.get("height")) != (720, 1280):
@@ -54,41 +47,44 @@ def check_video(key: str, path: Path) -> None:
         fail(f"{key}: áudio {a.get('codec_name')} ≠ aac")
 
 
-def check_narration(day_dir: Path) -> None:
-    for txt in sorted(day_dir.glob("*.txt")) + sorted(day_dir.glob("v*.txt")):
-        t = txt.read_text(encoding="utf-8", errors="ignore")
-        if re.search(r"[\U0001F000-\U0001FAFF☀-➿]", t):
-            fail(f"narração {txt.name}: contém emoji")
-        if "http" in t:
-            fail(f"narração {txt.name}: contém URL")
-        if len(t.split()) > 40:
-            fail(f"narração {txt.name}: longa demais ({len(t.split())} palavras)")
-
-
 def main(day: str) -> int:
     day_dir = C.FACTORY_DATA / day
     _ERRORS.clear()
     try:
-        offer = json.loads((day_dir / "offer.json").read_text(encoding="utf-8"))
+        data = json.loads((day_dir / "offers_day.json").read_text(encoding="utf-8"))
+        groups = data["groups"]
     except Exception:
-        fail("offer.json ausente/ilegível")
+        fail("offers_day.json ausente/ilegível")
         return 1
-    if (offer.get("discount_pct") or 0) < 5:
-        fail(f"desconto {offer.get('discount_pct')}% < 5%")
-    if not str(offer.get("affiliate_url") or "").startswith("http"):
-        fail("affiliate_url inválido")
-    if not list(day_dir.glob("foto*.jpg")):
-        fail("sem fotos do anúncio")
+    offers = [o for v in groups.values() for o in v]
+    links = [o.get("affiliate_url", "") for o in offers]
+    if len(links) < 3 or len(set(links)) != len(links):
+        fail("links duplicados ou poucos")
+    for o in offers:
+        if not str(o.get("affiliate_url", "")).startswith("http"):
+            fail(f"link inválido: {o.get('title', '')[:30]}")
+        if (o.get("discount_pct") or 0) < 5:
+            fail(f"desconto <5%: {o.get('title', '')[:30]}")
+        if not (day_dir / Path(o.get("photos_local", [""])[0]).name).exists():
+            fail(f"foto ausente: {o.get('title', '')[:30]}")
     try:
         pack = json.loads((day_dir / "pack.json").read_text(encoding="utf-8"))
     except Exception:
-        fail("pack.json ausente/ilegível — rode pack antes do QC")
+        fail("pack.json ausente — rode pack antes do QC")
         return 1
-    if offer.get("affiliate_url") not in pack.get("caption", ""):
-        fail("legenda sem o link afiliado")
     for key, vpath in (pack.get("videos") or {}).items():
         check_video(key, Path(vpath))
-    check_narration(day_dir)
+        for link in (pack.get("affiliates") or {}).get(key, []):
+            if link not in pack.get("captions", {}).get(key, ""):
+                fail(f"legenda {key} sem link")
+    for txt in sorted(day_dir.glob("*.txt")):
+        t = txt.read_text(encoding="utf-8", errors="ignore")
+        if re.search(r"[\U0001F000-\U0001FAFF☀-➿]", t):
+            fail(f"narração {txt.name}: emoji")
+        if "http" in t:
+            fail(f"narração {txt.name}: URL")
+        if len(t.split()) > 40:
+            fail(f"narração {txt.name}: longa ({len(t.split())} palavras)")
     if _ERRORS:
         print(f"QC: {len(_ERRORS)} falha(s) — ENVIO BLOQUEADO.")
         return 1

@@ -13,9 +13,9 @@ import requests
 
 from . import config as C
 
-ORDER = [("v1", "🎬 VÍDEO 1 — POV apresentando"),
-         ("v2", "⚡ VÍDEO 2 — Oferta relâmpago"),
-         ("v3", "🔥 VÍDEO 3 — Top achadinho")]
+ORDER = [("v1", "🎬 VITRINE 1"),
+         ("v2", "🎬 VITRINE 2"),
+         ("v3", "🎬 VITRINE 3")]
 
 
 def main(day: str) -> int:
@@ -37,19 +37,21 @@ def main(day: str) -> int:
         r.raise_for_status()
         return r.json()["result"]["message_id"]
 
-    msg_ids["header"] = _send({"chat_id": chat, "text": head, "parse_mode": "Markdown",
-                               "disable_web_page_preview": True}) if (head := (
-        f"📦 *Pack 3 vídeos — {pack['day']}*\n{pack['title']}\n"
-        f"🔗 {pack['affiliate_url']}")) else 0
+    msg_ids["header"] = _send({"chat_id": chat,
+                               "text": f"📦 *Pack vitrine — {pack['day']}* (9 produtos, 3 vídeos)",
+                               "parse_mode": "Markdown", "disable_web_page_preview": True})
     for key, label in ORDER:
+        if key not in pack["videos"]:
+            continue
         vpath = pack["videos"][key]
         with open(vpath, "rb") as f:
             msg_ids[key] = _send(
-                {"chat_id": chat, "caption": f"{label}\n\n{pack['caption'][:900]}"},
+                {"chat_id": chat,
+                 "caption": f"{label}\n\n{pack['captions'][key][:900]}"},
                 {"video": (Path(vpath).name, f, "video/mp4")})
-    msg_ids["comment"] = _send(
-        {"chat_id": chat,
-         "text": f"📌 *Texto do 1º comentário* (colar após postar):\n{pack['first_comment']}"})
+        msg_ids[f"{key}_1com"] = _send(
+            {"chat_id": chat,
+             "text": f"📌 *1º comentário {label}:*\n{pack['first_comments'][key]}"})
     pack["telegram_msg_ids"] = msg_ids
     (day_dir / "pack.json").write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding="utf-8")
     print("Pack entregue no Telegram.")

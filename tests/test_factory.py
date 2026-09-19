@@ -25,14 +25,15 @@ def test_short_name_preserva_frase():
     assert short_name("*TÁ DE GRAÇA, GENTE* 😱🤩") == "TÁ DE GRAÇA, GENTE"
 
 
-def test_pack_barra_sem_link(tmp_path, monkeypatch):
+def test_pack_barra_link_duplicado(tmp_path):
     from factory import pack_redes
     day = tmp_path / "d"
     day.mkdir()
-    (day / "offer.json").write_text(json.dumps({
-        "day": "2026-09-19", "title": "X", "price": 10, "original_price": 20,
-        "discount_pct": 50, "marketplace": "shopee", "affiliate_url": "",
-        "original_label": "R$ 20", "price_label": "R$ 10"}))
+    o = {"title": "X", "price": 10, "original_price": 20, "discount_pct": 50,
+         "marketplace": "shopee", "affiliate_url": "http://dup",
+         "original_label": "R$ 20", "price_label": "R$ 10"}
+    (day / "offers_day.json").write_text(json.dumps(
+        {"day": "2026-09-19", "groups": {"v1": [o, o, o]}}))
     with pytest.raises(SystemExit) as exc:
         pack_redes.build_pack(day, {})
     assert exc.value.code == 2
@@ -65,6 +66,5 @@ def test_sanitize_narracao():
 def test_usados_roundtrip(tmp_path, monkeypatch):
     from factory import oferta_do_dia as O, config as C
     monkeypatch.setattr(C, "FACTORY_DATA", tmp_path)
-    assert O.offer_key({"affiliate_url": "http://x"}) == "http://x"
-    O.mark_usado("http://x")
-    assert "http://x" in O.load_usados()
+    O.mark_usados(["http://x", "http://y"])
+    assert {"http://x", "http://y"} <= O.load_usados()

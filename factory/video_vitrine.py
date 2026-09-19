@@ -1,0 +1,117 @@
+"""Vitrine: capa + 3 cards produto + QR final. Molde da referência, cores CaçaOfertas.
+
+Card: nome em caps espaçadas + pílula creme (preço + LINK NO CANAL) + foto.
+Uso: build(offers[3], outdir, key) -> mp4
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+from . import config as C
+from . import render as R
+from .video_chamada import qr_card
+from .video_cinetico import base_scene, handle_footer, short_name
+
+CREAM = (250, 243, 228)
+NAVY_INK = (18, 28, 60)
+
+
+def spaced_kicker(base: Image.Image, cx: int, y: int, text: str) -> int:
+    """Nome em caps espaçadas (estilo referência). Encolhe até caber."""
+    t = " ".join(text.upper())
+    size = 44
+    while size > 24:
+        f = ImageFont.truetype(str(C.FONT_TEXT_BOLD), size)
+        d = ImageDraw.Draw(base)
+        if d.textbbox((0, 0), t, font=f)[2] <= 920:
+            break
+        size -= 4
+    f = ImageFont.truetype(str(C.FONT_TEXT_BOLD), size)
+    d = ImageDraw.Draw(base)
+    bb = d.textbbox((0, 0), t, font=f)
+    d.text((cx - (bb[2] - bb[0]) / 2, y), t, font=f, fill=R.WHITE)
+    return y + (bb[3] - bb[1]) + 10
+
+
+def price_pill(base: Image.Image, cx: int, y: int, price_label: str) -> int:
+    disp = ImageFont.truetype(str(C.FONT_DISPLAY), 72)
+    small = ImageFont.truetype(str(C.FONT_TEXT_BOLD), 34)
+    d = ImageDraw.Draw(base)
+    b1 = d.textbbox((0, 0), price_label, font=disp)
+    b2 = d.textbbox((0, 0), "LINK NO CANAL", font=small)
+    w = max(b1[2] - b1[0], b2[2] - b2[0]) + 110
+    h = (b1[3] - b1[1]) + (b2[3] - b2[1]) + 90
+    x0, y0 = cx - w / 2, y
+    # sombra suave
+    sh = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rounded_rectangle([x0, y0 + 14, x0 + w, y0 + h + 14], radius=44, fill=(0, 0, 0, 110))
+    base.alpha_composite(sh)
+    d = ImageDraw.Draw(base)
+    d.rounded_rectangle([x0, y0, x0 + w, y0 + h], radius=44, fill=CREAM)
+    d.text((cx - (b1[2] - b1[0]) / 2, y0 + 30), price_label, font=disp, fill=NAVY_INK)
+    d.text((cx - (b2[2] - b2[0]) / 2, y0 + 30 + (b1[3] - b1[1]) + 16),
+           "LINK NO CANAL", font=small, fill=NAVY_INK)
+    return int(y0 + h)
+
+
+def photo_shadow(base: Image.Image, photo: Path, cx_top: tuple[int, int], w: int, h: int) -> int:
+    x, y = cx_top
+    sh = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rounded_rectangle([x, y + 16, x + w, y + h + 16], radius=36, fill=(0, 0, 0, 120))
+    base.alpha_composite(sh)
+    base.alpha_composite(R.fit_photo(photo, w, h).convert("RGBA"), (x, y))
+    return y + h
+
+
+def card_scene(offer: dict, seed: int) -> tuple[Image.Image, str, str]:
+    name = short_name(offer["title"])
+    bg = base_scene(seed)
+    y = spaced_kicker(bg, R.W // 2, 300, name)
+    y = price_pill(bg, R.W // 2, y + 30, offer["price_label"])
+    photo = Path(offer["photos_local"][0])
+    photo_shadow(bg, photo, ((R.W - 860) // 2, y + 40), 860, 500)
+    handle_footer(bg)
+    nar = f"{name}, {offer['price_label']}, link no canal!"
+    return bg, nar, offer["price_label"]
+
+
+def cover_scene(seed: int) -> tuple[Image.Image, str, str]:
+    bg = base_scene(seed)
+    y = R.draw_display(bg, R.W // 2, 420, "ACHADINHOS", 104)
+    y = R.draw_display(bg, R.W // 2, y + 10, "DO DIA", 104, accent="DIA")
+    y = R.draw_center_text(bg, R.W // 2, y + 40, "3 ofertas verificadas", 50)
+    R.paste_logo(bg, R.W // 2, 1180, 520)
+    handle_footer(bg)
+    return bg, "Achadinhos do dia no Caça Ofertas! Três ofertas verificadas!", "ACHADINHOS DO DIA"
+
+
+def final_scene(seed: int) -> tuple[Image.Image, str, str]:
+    bg = base_scene(seed)
+    y = R.draw_display(bg, R.W // 2, 300, "ENTRA NO CANAL", 92, accent="CANAL")
+    card = qr_card().convert("RGBA")
+    cw, ch = card.size
+    scale = 560 / cw
+    card = card.resize((560, int(ch * scale)), Image.LANCZOS)
+    bg.alpha_composite(card, ((R.W - 560) // 2, y + 40))
+    R.draw_center_text(bg, R.W // 2, y + 40 + card.height + 30,
+                       "Aponta a câmera. É de graça!", 50, fill=R.WHITE, bold=True)
+    handle_footer(bg)
+    return bg, "Aponta a câmera pro código e entra no canal. É de graça! Te espero lá.", "ENTRA NO CANAL »"
+
+
+def build(offers: list[dict], outdir: Path, key: str, seed_base: int) -> Path:
+    outdir.mkdir(parents=True, exist_ok=True)
+    parts = [cover_scene(seed_base)] + \
+            [card_scene(o, seed_base + 1 + i) for i, o in enumerate(offers)] + \
+            [final_scene(seed_base + 5)]
+    scenes = []
+    for i, (bg, nar, cap) in enumerate(parts):
+        png = outdir / f"{key}s{i+1}.png"
+        bg.convert("RGB").save(png)
+        mp3 = outdir / f"{key}s{i+1}.mp3"
+        R.tts_save(nar, mp3)
+        scenes.append({"png": png, "mp3": mp3, "caption": cap})
+    out = outdir / f"{key}-vitrine.mp4"
+    return R.assemble(scenes, out, outdir / f"work_{key}")

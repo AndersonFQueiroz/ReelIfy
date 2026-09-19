@@ -10,6 +10,7 @@ FONTS = ASSETS / "fonts"
 FACTORY_DATA = REPO_ROOT / "data" / "factory"
 
 FONT_DISPLAY = FONTS / "ArchivoBlack.ttf"
+LOGO = ASSETS / "logo.png"
 FONT_TEXT = FONTS / "Poppins-Regular.ttf"
 FONT_TEXT_MED = FONTS / "Poppins-Medium.ttf"
 FONT_TEXT_BOLD = FONTS / "Poppins-SemiBold.ttf"
