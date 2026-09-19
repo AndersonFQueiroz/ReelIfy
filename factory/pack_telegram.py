@@ -51,7 +51,9 @@ def main(day: str) -> int:
                 {"video": (Path(vpath).name, f, "video/mp4")})
         msg_ids[f"{key}_1com"] = _send(
             {"chat_id": chat,
-             "text": f"📌 *1º comentário {label}:*\n{pack['first_comments'][key]}"})
+             "text": f"📌 *1º comentário {label}:*\n{pack['first_comments'][key]}\n\n"
+                     f"*CTAs:*\nYT: {pack['cta']['youtube']}\n"
+                     f"IG: {pack['cta']['instagram']}\nTT/Kwai: {pack['cta']['tiktok']}"})
     pack["telegram_msg_ids"] = msg_ids
     (day_dir / "pack.json").write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding="utf-8")
     print("Pack entregue no Telegram.")

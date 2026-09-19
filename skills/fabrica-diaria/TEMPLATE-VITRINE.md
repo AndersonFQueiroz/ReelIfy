@@ -28,10 +28,11 @@ Padrão oficial dos 3 vídeos/dia. Mudar só: produtos, fotos, narração, preç
 - Post: Buffer GraphQL — IG `metadata.instagram={type:reel}`,
   YT `metadata.youtube={title,categoryId:22}`. Slots 13/18/23 UTC (10h/15h/20h BRT).
 ## 1º comentário padrão (travado)
-👇 CANAL GRÁTIS NO TELEGRAM: copia esse link → t.me/cacaofertasofcBR
-As ofertas saem primeiro lá! 🔥 + 3 links numerados.
-IG tenta automático (`firstComment`; se o Free rejeitar, segue na legenda).
-TikTok/Kwai: sem API de comentário — colar na mão (texto no pack).
-YouTube: links na DESCRIÇÃO (campo descrição, nunca título!) — https:// vira
-clicável sozinho. Título curto sempre.
+👇 CANAL GRÁTIS + 3 links + "💬 Comenta 1, 2 ou 3 — qual tu levaria?"
+(engajamento sem promessa de resposta; zero trabalho manual.)
+## CTA por rede (travado)
+- YT: comenta 1/2/3 + link na bio do canal (Shorts nunca tem link clicável; YT sem PV)
+- IG: me chama no direct (lá o link clica)
+- TT/Kwai: comenta 1/2/3 (+ canal na bio)
+Fase 2 futura: ManyChat auto-DM no IG por palavra-chave (só se o volume justificar).
 - Kwai: manual via pack Telegram. Nenhuma ferramenta suporta.

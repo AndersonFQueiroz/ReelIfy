@@ -115,7 +115,7 @@ def main(day: str, only: list[str] | None = None) -> int:
         for svc in WANT:
             if svc not in chans:
                 continue
-            text = pack["captions"][key]
+            text = pack["captions"][key] + "\n" + pack.get("cta", {}).get(svc, "")
             if svc == "tiktok":
                 text = text.replace("\n", " ")
             vurl = url_tt or url  # Telegram: único host com HEAD honesto

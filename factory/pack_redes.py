@@ -16,6 +16,12 @@ TAGS_BASE = ["achadinhos", "ofertas", "promocao", "desconto", "ofertasdodia", "b
 TAGS_MKT = {"mercadolivre": ["mercadolivre", "achadinhosml"],
             "shopee": ["shopee", "achadinhosshopee"]}
 
+# CTA por rede (YouTube não tem PV; Shorts não tem link clicável)
+CTA = {"youtube": "💬 Comenta 1, 2 ou 3 + 🔗 link na bio do canal 👆",
+       "instagram": "📩 Me chama no direct que eu te mando o link 👇",
+       "tiktok": "💬 Comenta 1, 2 ou 3 👇",
+       "kwai": "💬 Comenta 1, 2 ou 3 👇"}
+
 
 def caption_for(offers: list[dict], edition: int = 1) -> tuple[str, str]:
     lines = [f"🔥 ACHADINHOS DO DIA (#{edition})"]
@@ -27,9 +33,10 @@ def caption_for(offers: list[dict], edition: int = 1) -> tuple[str, str]:
     lines.append("📲 Mais ofertas: t.me/cacaofertasofcBR")
     lines.append(" ".join(f"#{t}" for t in sorted(tags)))
     lines.append(C.HANDLE)
-    first = ("👇 CANAL GRÁTIS NO TELEGRAM: copia esse link → t.me/cacaofertasofcBR\n"
+    first = ("👇 CANAL GRÁTIS NO TELEGRAM: t.me/cacaofertasofcBR\n"
              "As ofertas saem primeiro lá! 🔥\n\n" + "\n".join(
-                 f"{i}⃣ {o['affiliate_url']}" for i, o in enumerate(offers, 1)))
+                 f"{i}⃣ {o['affiliate_url']}" for i, o in enumerate(offers, 1)) +
+             "\n\n💬 Comenta 1, 2 ou 3 — qual tu levaria?")
     return "\n".join(lines), first
 
 
@@ -54,7 +61,7 @@ def build_pack(day_dir: Path, videos: dict[str, Path]) -> Path:
             shutil.copy(src, dst)
             covers[key] = str(dst)
     pack = {"day": data["day"], "captions": captions, "first_comments": firsts,
-            "titles": titles,
+            "titles": titles, "cta": CTA,
             "videos": {k: str(v) for k, v in videos.items()}, "covers": covers,
             "affiliates": {k: [o["affiliate_url"] for o in groups[k]] for k in videos}}
     (day_dir / "pack.json").write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding="utf-8")
