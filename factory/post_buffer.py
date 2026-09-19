@@ -51,17 +51,25 @@ def channels(token: str) -> dict[str, str]:
     return found
 
 
-def create_post(token: str, channel_id: str, text: str, video_url: str, due_at: str) -> str:
-    q = """mutation($i: CreatePostInput!) {
-      createPost(input: $i) {
-        ... on PostActionSuccess { post { id dueAt } }
-        ... on MutationError { message }
-      } }"""
+def create_post(token: str, svc: str, channel_id: str, text: str,
+                video_url: str, due_at: str, title: str) -> str:
+    meta = {}
+    if svc == "instagram":
+        meta = {"instagram": {"type": "reel", "shouldShareToFeed": True}}
+    elif svc == "youtube":
+        meta = {"youtube": {"title": title, "categoryId": "22"}}
     variables = {"i": {"text": text, "channelId": channel_id,
                        "schedulingType": "automatic", "mode": "customScheduled",
                        "dueAt": due_at,
                        "assets": [{"video": {"url": video_url,
                                              "metadata": {"thumbnailOffset": 2000}}}]}}
+    if meta:
+        variables["i"]["metadata"] = meta
+    q = """mutation($i: CreatePostInput!) {
+      createPost(input: $i) {
+        ... on PostActionSuccess { post { id dueAt } }
+        ... on MutationError { message }
+      } } """
     data = _gql(token, q, variables)
     res = (data.get("createPost") or {})
     post = res.get("post")
@@ -93,20 +101,25 @@ def main(day: str, only: list[str] | None = None) -> int:
     ok, fail = 0, 0
     for key in keys:
         h, m = SLOTS_UTC[{"v1": 0, "v2": 1, "v3": 2}[key]]
+        # Instagram/YouTube aceitam catbox; TikTok exige HEAD honesto → host Telegram
+        url_tt = upload_public.telegram_host(Path(pack["videos"][key]))
         url = upload_public.upload(Path(pack["videos"][key]))
-        if not url:
+        if not (url or url_tt):
             print(f"upload público falhou: {key}")
             fail += 3
             continue
-        h, m = SLOTS_UTC[vi]
         due = _dt.datetime(int(day[:4]), int(day[5:7]), int(day[8:10]), h, m,
                            tzinfo=_dt.timezone.utc).isoformat()
         for svc in WANT:
             if svc not in chans:
                 continue
-            text = pack["caption"] if svc != "tiktok" else pack["caption"].replace("\n", " ")
+            text = pack["captions"][key]
+            if svc == "tiktok":
+                text = text.replace("\n", " ")
+            vurl = url_tt or url  # Telegram: único host com HEAD honesto
             try:
-                pid = create_post(token, chans[svc], text[:2100], url, due)
+                pid = create_post(token, svc, chans[svc], text[:2100], vurl, due,
+                                  pack.get("titles", {}).get(key, f"ACHADINHOS DO DIA {day}"))
                 print(f"Buffer OK {svc}/{key}: {pid} @ {due}")
                 ok += 1
             except Exception as exc:
@@ -117,8 +130,9 @@ def main(day: str, only: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    _day = sys.argv[1]
+    args = sys.argv[1:]
+    _day = args[args.index("--date") + 1] if "--date" in args else args[0]
     _only = None
-    if "--only" in sys.argv:
-        _only = sys.argv[sys.argv.index("--only") + 1].split(",")
+    if "--only" in args:
+        _only = args[args.index("--only") + 1].split(",")
     raise SystemExit(main(_day, _only))

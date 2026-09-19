@@ -38,6 +38,34 @@ def upload(path: Path) -> str | None:
     return url
 
 
+def telegram_host(path: Path) -> str | None:
+    """Hospeda no Telegram (HEAD honesto p/ validadores). Apaga a msg após —
+    o arquivo continua acessível. Retorna URL pública ou None."""
+    token, chat = C.env("TELEGRAM_BOT_TOKEN"), C.env("TELEGRAM_OWNER_CHAT_ID")
+    if not (token and chat):
+        return None
+    try:
+        s = requests.Session()
+        with open(path, "rb") as f:
+            r = s.post(f"https://api.telegram.org/bot{token}/sendVideo",
+                       data={"chat_id": chat, "caption": "📤 host temporário (apagando)"},
+                       files={"video": (path.name, f, "video/mp4")}, timeout=180).json()
+        mid = r["result"]["message_id"]
+        fid = r["result"]["video"]["file_id"]
+        g = s.get(f"https://api.telegram.org/bot{token}/getFile",
+                  params={"file_id": fid}, timeout=30).json()
+        url = f"https://api.telegram.org/file/bot{token}/{g['result']['file_path']}"
+        try:
+            s.post(f"https://api.telegram.org/bot{token}/deleteMessage",
+                   json={"chat_id": chat, "message_id": mid}, timeout=30)
+        except Exception:
+            pass
+        return url
+    except Exception as exc:
+        print(f"telegram host falhou: {exc}")
+        return None
+
+
 if __name__ == "__main__":
     out = upload(Path(sys.argv[1]))
     print(out or "FALHA")

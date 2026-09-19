@@ -39,10 +39,12 @@ def build_pack(day_dir: Path, videos: dict[str, Path]) -> Path:
     if len(links) != len(set(links)) or not all(l.startswith("http") for l in links):
         print("FALHA DURA: links duplicados ou inválidos.", file=sys.stderr)
         raise SystemExit(2)
-    captions, firsts, covers = {}, {}, {}
+    captions, firsts, covers, titles = {}, {}, {}, {}
     for key in videos:
         cap, first = caption_for(groups[key])
         captions[key], firsts[key] = cap, first
+        titles[key] = "🔥 " + " · ".join(
+            f"{short_name(o['title'])[:30]} {o['price_label']}" for o in groups[key])[:95]
         cand = day_dir / f"{key}s1.png"
         src = cand if cand.exists() else None
         if src and src.exists():
@@ -50,6 +52,7 @@ def build_pack(day_dir: Path, videos: dict[str, Path]) -> Path:
             shutil.copy(src, dst)
             covers[key] = str(dst)
     pack = {"day": data["day"], "captions": captions, "first_comments": firsts,
+            "titles": titles,
             "videos": {k: str(v) for k, v in videos.items()}, "covers": covers,
             "affiliates": {k: [o["affiliate_url"] for o in groups[k]] for k in videos}}
     (day_dir / "pack.json").write_text(json.dumps(pack, ensure_ascii=False, indent=1), encoding="utf-8")

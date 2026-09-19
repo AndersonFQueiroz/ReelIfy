@@ -68,3 +68,10 @@ def test_usados_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(C, "FACTORY_DATA", tmp_path)
     O.mark_usados(["http://x", "http://y"])
     assert {"http://x", "http://y"} <= O.load_usados()
+
+
+def test_telegram_host_sem_credenciais(monkeypatch):
+    from factory import upload_public as U
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_OWNER_CHAT_ID", raising=False)
+    assert U.telegram_host(__file__) is None
