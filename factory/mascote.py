@@ -116,21 +116,42 @@ def _badge(sprite: Image.Image, size: int) -> Image.Image:
     return Image.alpha_composite(glow, badge).resize((size, size), Image.LANCZOS)
 
 
-def eco_loop(outdir: Path, size: int = 440) -> Path:
-    """Monta eco_00..07.png a partir da arte externa (fallback: PIL)."""
+def _float(sprite: Image.Image, size: int) -> Image.Image:
+    """Só o personagem (contorno branco sticker separa do fundo)."""
+    sprite = sprite.convert("RGBA")
+    for corner in [(0, 0), (sprite.width - 1, 0), (0, sprite.height - 1),
+                   (sprite.width - 1, sprite.height - 1)]:
+        ImageDraw.floodfill(sprite, corner, (0, 0, 0, 0), thresh=60)
+    bbox = sprite.getbbox()
+    if bbox:
+        pad = 12
+        bbox = (max(0, bbox[0]-pad), max(0, bbox[1]-pad),
+                min(sprite.width, bbox[2]+pad), min(sprite.height, bbox[3]+pad))
+        sprite = sprite.crop(bbox)
+    w, h = sprite.size
+    s = size / max(w, h)
+    return sprite.resize((int(w*s), int(h*s)), Image.LANCZOS)
+
+
+def eco_loop(outdir: Path, size: int = 440, badge: bool = True) -> Path:
+    """Monta eco_00..07.png. badge=False → flutuante sem fundo."""
     outdir.mkdir(parents=True, exist_ok=True)
     if (ECO_DIR / "base.png").exists():
-        sprites = {n: _badge(Image.open(ECO_DIR / f"{n}.png"), size) for n in
-                   ("base", "open", "half", "blink")}
+        if badge:
+            sprites = {n: _badge(Image.open(ECO_DIR / f"{n}.png"), size) for n in
+                       ("base", "open", "half", "blink")}
+        else:
+            sprites = {n: _float(Image.open(ECO_DIR / f"{n}.png"), size) for n in
+                       ("base", "open", "half", "blink")}
         seq = [sprites[n] for n in ECO_SEQ]
     else:
         seq = [eco_frame(size, p) for p in range(NFRAMES)]
-    amp = size * 0.035
+    amp = size * (0.05 if not badge else 0.035)
     for p in range(NFRAMES):
         spr = seq[p]
         dy = int(amp * math.sin(2 * math.pi * p / NFRAMES))
         canvas = Image.new("RGBA", (size, size + int(amp * 2) + 8), (0, 0, 0, 0))
-        canvas.alpha_composite(spr, (0, int(amp) + 4 + dy))
+        canvas.alpha_composite(spr, ((canvas.width - spr.width) // 2, int(amp) + 4 + dy))
         canvas.save(outdir / f"eco_{p:02d}.png")
     return outdir
 

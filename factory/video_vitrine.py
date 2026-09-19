@@ -17,9 +17,10 @@ from .video_cinetico import base_scene, handle_footer, short_name
 
 # Eco animado (coords saída 720x1280): capa canto sup-direito, cards sticker
 # na pílula, final à esquerda do QR. Longe da logo (centro) e das legendas.
-ECO_POS = {"cover": {"x": 575, "y": 600, "size": 120},
-           "card": {"x": 470, "y": 330, "size": 120},
-           "final": {"x": 20, "y": 500, "size": 130}}
+ECO_POS = {"cover": {"x": 575, "y": 600, "size": 145},
+           "card": {"x": 470, "y": 330, "size": 145},
+           "final": {"x": 20, "y": 500, "size": 155}}
+ECO_BADGE = False  # flutuante sem fundo (votado no teste)
 
 CREAM = (250, 243, 228)
 NAVY_INK = (18, 28, 60)
@@ -128,7 +129,7 @@ def final_scene(seed: int) -> tuple[Image.Image, str, str]:
 def build(offers: list[dict], outdir: Path, key: str, seed_base: int,
           day: str = "2026-09-19", edition: int = 1) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
-    loopdir = eco_loop(outdir / f"eco_loop_{key}")
+    loopdir = eco_loop(outdir / f"eco_loop_{key}", badge=ECO_BADGE)
     parts = [cover_scene(seed_base, key, day, edition)] + \
             [card_scene(o, seed_base + 1 + i) for i, o in enumerate(offers)] + \
             [final_scene(seed_base + 5)]
