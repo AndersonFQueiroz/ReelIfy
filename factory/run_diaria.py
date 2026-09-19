@@ -22,8 +22,16 @@ def log(msg: str) -> None:
     print(f"[+{time.time()-T0:6.1f}s] {msg}", flush=True)
 
 
+def day_arg(argv: list[str]) -> str:
+    if "--date" in argv:
+        return argv[argv.index("--date") + 1]
+    if argv and len(argv[0]) == 10 and argv[0][4] == "-":
+        return argv[0]
+    return _dt.date.today().isoformat()
+
+
 def main(argv: list[str]) -> int:
-    day = argv[0] if argv and len(argv[0]) == 10 else _dt.date.today().isoformat()
+    day = day_arg(argv)
     log(f"Fábrica vitrine — {day}")
     if oferta_do_dia.main([day]) != 0:
         return 1

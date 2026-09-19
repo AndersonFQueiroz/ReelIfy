@@ -56,8 +56,8 @@ def create_post(token: str, svc: str, channel_id: str, text: str,
                 first_comment: str = "") -> str:
     meta = {}
     if svc == "instagram":
-        meta = {"instagram": {"type": "reel", "shouldShareToFeed": True,
-                              "firstComment": first_comment}}
+        # firstComment é pago → links vão na legenda (copiar-colar)
+        meta = {"instagram": {"type": "reel", "shouldShareToFeed": True}}
     elif svc == "youtube":
         meta = {"youtube": {"title": title, "categoryId": "22"}}
     variables = {"i": {"text": text, "channelId": channel_id,
@@ -138,4 +138,6 @@ if __name__ == "__main__":
     _only = None
     if "--only" in args:
         _only = args[args.index("--only") + 1].split(",")
+    if "--svc" in args:
+        WANT = tuple(s for s in args[args.index("--svc") + 1].split(",") if s in WANT)
     raise SystemExit(main(_day, _only))

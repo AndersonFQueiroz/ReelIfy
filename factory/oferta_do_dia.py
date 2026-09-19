@@ -206,7 +206,10 @@ def _brl(v: float) -> str:
 
 
 def main(argv: list[str]) -> int:
-    day = argv[0] if argv and len(argv[0]) == 10 else _dt.date.today().isoformat()
+    if "--date" in argv:
+        day = argv[argv.index("--date") + 1]
+    else:
+        day = argv[0] if argv and len(argv[0]) == 10 else _dt.date.today().isoformat()
     outdir = _day_dir(day)
     if "--fresh" not in argv and (outdir / "offers_day.json").exists():
         print(f"Ofertas de {day} já existem — reuse (use --fresh p/ trocar).")
