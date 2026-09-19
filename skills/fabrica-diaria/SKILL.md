@@ -11,6 +11,14 @@ Ao receber o trigger: **executar direto, sem perguntas**. Orquestrador: `python3
 3. `factory/video_cinetico.py` → **Vídeo 2 "Oferta relâmpago"** + **Vídeo 3 "Top achadinho"** (100% locais).
 4. `factory/pack_redes.py` → valida e monta `pack.json` (legendas, hashtags, link afiliado, 1º comentário, capas).
 5. `factory/pack_telegram.py` → entrega no privado do dono: 3 mp4 + capa + legenda + link.
+6. `factory/post_buffer.py` → auto-post IG + TikTok + YouTube via Buffer
+   (requer `BUFFER_API_KEY`; sem chave pula sem erro; Kwai sempre manual).
+
+## Setup único do dono (5 min, 1x)
+Conta grátis no buffer.com (3 canais) → conectar Instagram + TikTok + YouTube
+(login normal, sem review/auditoria) → Settings → API → New key →
+colar como `BUFFER_API_KEY` no `.env`. A fábrica sobe o mp4 no Catbox
+e agenda 10h/15h/20h (BRT) sozinha.
 
 ## Regras duras (nunca violar)
 - **NENHUM pack sai sem link de afiliado válido.** Se `affiliate_url` vier vazio, o pipeline PARA e avisa (não gera vídeo mudo de link).
