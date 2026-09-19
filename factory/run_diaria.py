@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from . import config as C
-from . import oferta_do_dia, pack_redes, pack_telegram, video_cinetico, video_ia
+from . import oferta_do_dia, pack_redes, pack_telegram, post_buffer, video_cinetico, video_ia
 
 T0 = time.time()
 
@@ -43,9 +43,14 @@ def main(argv: list[str]) -> int:
             return 1
     pack = pack_redes.build_pack(day_dir, {"v1": v1, "v2": v2, "v3": v3})
     log(f"Pack: {pack.name}")
-    rc = pack_telegram.main(day)
+    rc_tg = pack_telegram.main(day)
+    log(f"Telegram rc={rc_tg} (cobre Kwai + backup)")
+    log("Auto-post Buffer (IG/TikTok/YouTube)...")
+    rc_buf = post_buffer.main(day)
+    log(f"Buffer rc={rc_buf}")
+    rc = 0 if rc_buf in (0, 3) else rc_buf
     log(f"FIM rc={rc}")
-    return 0 if rc in (0, 3) else rc
+    return rc
 
 
 if __name__ == "__main__":

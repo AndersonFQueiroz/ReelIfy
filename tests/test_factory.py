@@ -41,3 +41,10 @@ def test_pack_barra_sem_link(tmp_path, monkeypatch):
 def test_out_specs():
     assert (R.OUT_W, R.OUT_H) == (720, 1280)
     assert R.FPS == 30
+
+
+def test_buffer_sem_chave_pula(monkeypatch):
+    import os
+    from factory import post_buffer
+    monkeypatch.delenv("BUFFER_API_KEY", raising=False)
+    assert post_buffer.main("2000-01-01") == 3

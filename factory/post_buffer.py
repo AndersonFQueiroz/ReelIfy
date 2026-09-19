@@ -1,0 +1,115 @@
+"""Auto-post IG + TikTok + YouTube via Buffer (plano grátis).
+
+Requer BUFFER_API_KEY no .env (publish.buffer.com → API key) + canais
+conectados 1x no painel do Buffer. Sem chave → exit 3 (pula, sem erro).
+Kwai não tem suporte em nenhuma ferramenta → segue pack manual no Telegram.
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import json
+import sys
+from pathlib import Path
+
+import requests
+
+from . import config as C
+
+API = "https://api.buffer.com"
+_TIMEOUT = 60
+# 10h/15h/20h BRT = 13/18/23 UTC
+SLOTS_UTC = [(13, 0), (18, 0), (23, 0)]
+WANT = ("instagram", "tiktok", "youtube")
+
+
+def _gql(token: str, query: str, variables: dict | None = None) -> dict:
+    r = requests.post(API, json={"query": query, "variables": variables or {}},
+                      headers={"Authorization": f"Bearer {token}",
+                               "Content-Type": "application/json"},
+                      timeout=_TIMEOUT)
+    r.raise_for_status()
+    data = r.json()
+    if data.get("errors"):
+        raise RuntimeError(str(data["errors"][0].get("message")))
+    return data["data"]
+
+
+def channels(token: str) -> dict[str, str]:
+    orgs = _gql(token, "query { account { organizations { id name } } }")
+    org_list = ((orgs.get("account") or {}).get("organizations")) or []
+    if not org_list:
+        raise RuntimeError("sem organizações no Buffer")
+    found: dict[str, str] = {}
+    for org in org_list:
+        chs = _gql(token, "query($o: ID!) { channels(input: {organizationId: $o}) { id name service } }",
+                   {"o": org["id"]})
+        for ch in (chs.get("channels") or []):
+            svc = str(ch.get("service") or "").lower()
+            for w in WANT:
+                if w in svc and w not in found:
+                    found[w] = ch["id"]
+    return found
+
+
+def create_post(token: str, channel_id: str, text: str, video_url: str, due_at: str) -> str:
+    q = """mutation($i: CreatePostInput!) {
+      createPost(input: $i) {
+        ... on PostActionSuccess { post { id dueAt } }
+        ... on MutationError { message }
+      } }"""
+    variables = {"i": {"text": text, "channelId": channel_id,
+                       "schedulingType": "automatic", "mode": "customScheduled",
+                       "dueAt": due_at,
+                       "assets": [{"video": {"url": video_url,
+                                             "metadata": {"thumbnailOffset": 2000}}}]}}
+    data = _gql(token, q, variables)
+    res = (data.get("createPost") or {})
+    post = res.get("post")
+    if post:
+        return post["id"]
+    raise RuntimeError(res.get("message", "erro desconhecido"))
+
+
+def main(day: str) -> int:
+    from . import upload_public
+    token = C.env("BUFFER_API_KEY")
+    if not token:
+        print("SEM BUFFER_API_KEY — auto-post pulado (exit 3).")
+        return 3
+    day_dir = C.FACTORY_DATA / day
+    pack = json.loads((day_dir / "pack.json").read_text(encoding="utf-8"))
+    try:
+        chans = channels(token)
+    except Exception as exc:
+        print(f"Buffer canais falhou: {exc}")
+        return 1
+    missing = [w for w in WANT if w not in chans]
+    if missing:
+        print(f"Buffer: canais não conectados: {missing} (conecte 1x no painel)")
+    ok, fail = 0, 0
+    for vi, key in enumerate(("v1", "v2", "v3")):
+        url = upload_public.upload(Path(pack["videos"][key]))
+        if not url:
+            print(f"upload público falhou: {key}")
+            fail += 3
+            continue
+        h, m = SLOTS_UTC[vi]
+        due = _dt.datetime(int(day[:4]), int(day[5:7]), int(day[8:10]), h, m,
+                           tzinfo=_dt.timezone.utc).isoformat()
+        for svc in WANT:
+            if svc not in chans:
+                continue
+            text = pack["caption"] if svc != "tiktok" else pack["caption"].replace("\n", " ")
+            try:
+                pid = create_post(token, chans[svc], text[:2100], url, due)
+                print(f"Buffer OK {svc}/{key}: {pid} @ {due}")
+                ok += 1
+            except Exception as exc:
+                print(f"Buffer FALHOU {svc}/{key}: {exc}")
+                fail += 1
+    (day_dir / "buffer.json").write_text(json.dumps({"ok": ok, "fail": fail}), encoding="utf-8")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1]))
