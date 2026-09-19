@@ -27,8 +27,9 @@ def caption_for(offers: list[dict], edition: int = 1) -> tuple[str, str]:
     lines.append("📲 Mais ofertas: t.me/cacaofertasofcBR")
     lines.append(" ".join(f"#{t}" for t in sorted(tags)))
     lines.append(C.HANDLE)
-    first = "⚠️ Preços podem mudar! Garante aqui:\n" + "\n".join(
-        f"{i}⃣ {o['affiliate_url']}" for i, o in enumerate(offers, 1))
+    first = ("👇 CANAL GRÁTIS NO TELEGRAM: copia esse link → t.me/cacaofertasofcBR\n"
+             "As ofertas saem primeiro lá! 🔥\n\n" + "\n".join(
+                 f"{i}⃣ {o['affiliate_url']}" for i, o in enumerate(offers, 1)))
     return "\n".join(lines), first
 
 

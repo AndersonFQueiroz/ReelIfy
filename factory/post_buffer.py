@@ -52,10 +52,12 @@ def channels(token: str) -> dict[str, str]:
 
 
 def create_post(token: str, svc: str, channel_id: str, text: str,
-                video_url: str, due_at: str, title: str) -> str:
+                video_url: str, due_at: str, title: str,
+                first_comment: str = "") -> str:
     meta = {}
     if svc == "instagram":
-        meta = {"instagram": {"type": "reel", "shouldShareToFeed": True}}
+        meta = {"instagram": {"type": "reel", "shouldShareToFeed": True,
+                              "firstComment": first_comment}}
     elif svc == "youtube":
         meta = {"youtube": {"title": title, "categoryId": "22"}}
     variables = {"i": {"text": text, "channelId": channel_id,
@@ -119,7 +121,8 @@ def main(day: str, only: list[str] | None = None) -> int:
             vurl = url_tt or url  # Telegram: único host com HEAD honesto
             try:
                 pid = create_post(token, svc, chans[svc], text[:2100], vurl, due,
-                                  pack.get("titles", {}).get(key, f"ACHADINHOS DO DIA {day}"))
+                                  pack.get("titles", {}).get(key, f"ACHADINHOS DO DIA {day}"),
+                                  pack.get("first_comments", {}).get(key, ""))
                 print(f"Buffer OK {svc}/{key}: {pid} @ {due}")
                 ok += 1
             except Exception as exc:

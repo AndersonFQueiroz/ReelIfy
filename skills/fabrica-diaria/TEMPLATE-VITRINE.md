@@ -27,4 +27,11 @@ Padrão oficial dos 3 vídeos/dia. Mudar só: produtos, fotos, narração, preç
   catbox mente `content-length: 0` e o TikTok rejeita).
 - Post: Buffer GraphQL — IG `metadata.instagram={type:reel}`,
   YT `metadata.youtube={title,categoryId:22}`. Slots 13/18/23 UTC (10h/15h/20h BRT).
+## 1º comentário padrão (travado)
+👇 CANAL GRÁTIS NO TELEGRAM: copia esse link → t.me/cacaofertasofcBR
+As ofertas saem primeiro lá! 🔥 + 3 links numerados.
+IG tenta automático (`firstComment`; se o Free rejeitar, segue na legenda).
+TikTok/Kwai: sem API de comentário — colar na mão (texto no pack).
+YouTube: links na DESCRIÇÃO (campo descrição, nunca título!) — https:// vira
+clicável sozinho. Título curto sempre.
 - Kwai: manual via pack Telegram. Nenhuma ferramenta suporta.
