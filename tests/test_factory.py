@@ -60,3 +60,11 @@ def test_sanitize_narracao():
     from factory.render import sanitize_narration
     out = sanitize_narration("Olha 🔥 https://exemplo.com/x TOP!")
     assert "🔥" not in out and "http" not in out and "TOP!" in out
+
+
+def test_usados_roundtrip(tmp_path, monkeypatch):
+    from factory import oferta_do_dia as O, config as C
+    monkeypatch.setattr(C, "FACTORY_DATA", tmp_path)
+    assert O.offer_key({"affiliate_url": "http://x"}) == "http://x"
+    O.mark_usado("http://x")
+    assert "http://x" in O.load_usados()

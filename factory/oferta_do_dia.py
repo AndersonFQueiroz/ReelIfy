@@ -36,6 +36,27 @@ def _day_dir(day: str) -> Path:
     return d
 
 
+def _usados_path() -> Path:
+    return C.FACTORY_DATA / "usados.json"
+
+
+def load_usados() -> set[str]:
+    try:
+        return set(json.loads(_usados_path().read_text(encoding="utf-8")))
+    except Exception:
+        return set()
+
+
+def mark_usado(key: str) -> None:
+    u = load_usados()
+    u.add(key)
+    _usados_path().write_text(json.dumps(sorted(u), ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def offer_key(offer: dict) -> str:
+    return str(offer.get("affiliate_url") or offer.get("external_id"))
+
+
 def _session() -> requests.Session:
     s = requests.Session()
     s.headers.update({"User-Agent": "ReelifyFactory/1.0"})
@@ -72,7 +93,8 @@ def _shopee_candidate(s: requests.Session) -> dict | None:
         print(f"Shopee indisponível: {exc}")
         return None
     nodes = ((data.get("productOfferV2") or {}).get("nodes")) or []
-    best: dict | None = None
+    usados = load_usados()
+    scored = []
     for n in nodes:
         try:
             lo, hi = float(n.get("priceMin") or 0), float(n.get("priceMax") or 0)
@@ -81,10 +103,13 @@ def _shopee_candidate(s: requests.Session) -> dict | None:
         if not lo or not hi or hi <= lo or not n.get("offerLink") or not n.get("imageUrl"):
             continue
         disc = 1 - lo / hi
-        if disc < 0.05:
+        if disc < 0.05 or str(n.get("offerLink")) in usados:
             continue
-        if best is None or disc > best["_disc"]:
-            best = {"_disc": disc, "node": n, "price": lo, "orig": hi}
+        scored.append((disc, n, lo, hi))
+    if not scored:
+        return None
+    scored.sort(key=lambda t: (t[0], t[2]), reverse=True)
+    best = {"_disc": scored[0][0], "node": scored[0][1], "price": scored[0][2], "orig": scored[0][3]}
     if not best:
         return None
     n = best["node"]
@@ -121,6 +146,8 @@ def _channel_candidate(s: requests.Session) -> dict | None:
     blocks = re.findall(
         r'<div class="tgme_widget_message_wrap[^>]*>(.*?)<span class="tgme_widget_message_meta">',
         page, re.S)
+    usados = load_usados()
+    cands = []
     for block in reversed(blocks[-15:]):
         text_m = re.search(r'<div class="tgme_widget_message_text[^>]*>(.*?)</div>', block, re.S)
         if not text_m:
@@ -141,13 +168,18 @@ def _channel_candidate(s: requests.Session) -> dict | None:
             continue  # sem desconto real → próximo post
         title = next((l.strip() for l in text.splitlines() if len(l.strip()) > 12), "Oferta do canal")[:90]
         market = "mercadolivre" if "mercadolivre" in links[0] or "meli." in links[0] else "shopee"
-        return {
+        cand = {
             "marketplace": market, "external_id": f"canal-{hash(links[0]) & 0xffff}",
             "title": title, "price": price, "original_price": orig,
             "discount_pct": disc, "affiliate_url": links[0],
             "photos": [_html.unescape(photo_m.group(1))], "benefits": [],
         }
-    return None
+        if links[0] not in usados:
+            cands.append((disc, cand))
+    if not cands:
+        return None
+    cands.sort(key=lambda t: t[0], reverse=True)
+    return cands[0][1]
 
 
 # ---------------- main ----------------
@@ -197,6 +229,7 @@ def main(argv: list[str]) -> int:
                   "price_label": _brl(offer["price"]),
                   "original_label": _brl(offer["original_price"]),
                   "hook": "Para tudo que eu achei isso aqui!"})
+    mark_usado(offer_key(offer))
     (outdir / "offer.json").write_text(json.dumps(offer, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps({"ok": True, "origem": origem, "title": offer["title"][:60],
                       "discount": offer["discount_pct"], "marketplace": offer["marketplace"],
