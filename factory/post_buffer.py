@@ -140,4 +140,7 @@ if __name__ == "__main__":
         _only = args[args.index("--only") + 1].split(",")
     if "--svc" in args:
         WANT = tuple(s for s in args[args.index("--svc") + 1].split(",") if s in WANT)
+    if "--sim" not in args:
+        print("TRAVADO: post no Buffer exige aprovação explícita do dono (--sim). Nada enviado.")
+        raise SystemExit(3)
     raise SystemExit(main(_day, _only))

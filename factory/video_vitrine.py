@@ -88,6 +88,10 @@ def card_scene(offer: dict, seed: int) -> tuple[Image.Image, str, str | None]:
 
 WEEKDAYS = ["SEGUNDA-FEIRA", "TERÇA-FEIRA", "QUARTA-FEIRA", "QUINTA-FEIRA",
             "SEXTA-FEIRA", "SÁBADO", "DOMINGO"]
+# dias masculinos usam "deste", femininos "desta"
+WD_PREP = {"SEGUNDA-FEIRA": "desta", "TERÇA-FEIRA": "desta", "QUARTA-FEIRA": "desta",
+           "QUINTA-FEIRA": "desta", "SEXTA-FEIRA": "desta",
+           "SÁBADO": "deste", "DOMINGO": "deste"}
 MONTHS = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO",
           "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
 PART = {"v1": 1, "v2": 2, "v3": 3}
@@ -108,7 +112,7 @@ def cover_scene(seed: int, key: str = "v1", day: str = "2026-09-19",
     y = R.draw_center_text(bg, R.W // 2, y + 8, dateline, 40)
     R.paste_logo(bg, R.W // 2, 1200, 480)
     handle_footer(bg)
-    nar = (f"Oi! Eu sou o Eco! Achadinhos desta {wd.lower()}, "
+    nar = (f"Oi! Eu sou o Eco! Achadinhos {WD_PREP[wd]} {wd.lower()}, "
            f"parte {PART.get(key, 1)}! Três ofertas que eu garimpei pra tu economizar!")
     return bg, nar, "ACHADINHOS DO DIA"
 

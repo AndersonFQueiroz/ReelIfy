@@ -58,15 +58,55 @@ def current_edition() -> int:
 
 def load_usados() -> set[str]:
     try:
-        return set(json.loads(_usados_path().read_text(encoding="utf-8")))
+        data = json.loads(_usados_path().read_text(encoding="utf-8"))
+        return set(data if isinstance(data, list) else data.get("keys", []))
     except Exception:
         return set()
 
 
-def mark_usados(keys: list[str]) -> None:
+def load_used_titles() -> set[str]:
+    try:
+        data = json.loads(_usados_path().read_text(encoding="utf-8"))
+        return set(data.get("titles", [])) if isinstance(data, dict) else set()
+    except Exception:
+        return set()
+
+
+def norm_title(t: str) -> str:
+    """Normaliza p/ dedup: minúsculo, sem acento, sem números/medidas, top palavras."""
+    import re as _re
+    import unicodedata as _ud
+    t = _ud.normalize("NFKD", t.lower())
+    t = "".join(c for c in t if not _ud.combining(c))
+    t = _re.sub(r"\d+[a-z]*", " ", t)  # 400, 120x50, 380ml...
+    t = _re.sub(r"[^a-z ]", " ", t)
+    stop = {"de", "do", "da", "dos", "das", "e", "em", "com", "para", "kit", "unidade", "ou"}
+    words = [w for w in t.split() if w not in stop][:6]
+    return " ".join(words)
+
+
+def title_used(title: str, used_titles: set[str]) -> bool:
+    import difflib
+    nt = norm_title(title)
+    if not nt:
+        return False
+    for ut in used_titles:
+        if not ut:
+            continue
+        if nt == ut or difflib.SequenceMatcher(None, nt, ut).ratio() >= 0.72:
+            return True
+    return False
+
+
+def mark_usados(keys: list[str], titles: list[str] | None = None) -> None:
     u = load_usados()
     u.update(keys)
-    _usados_path().write_text(json.dumps(sorted(u), ensure_ascii=False, indent=1), encoding="utf-8")
+    payload: dict = {"keys": sorted(u)}
+    if titles is not None:
+        payload["titles"] = sorted(load_used_titles() | {norm_title(t) for t in titles if norm_title(t)})
+    else:
+        payload["titles"] = sorted(load_used_titles())
+    _usados_path().write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _session() -> requests.Session:
@@ -93,6 +133,7 @@ def _benefits_shopee(n: dict) -> list[str]:
 
 
 def _shopee_candidates(s: requests.Session, need: int, usados: set[str]) -> list[dict]:
+    used_titles = load_used_titles()
     app_id, secret = C.env("SHOPEE_APP_ID"), C.env("SHOPEE_SECRET")
     base = C.env("SHOPEE_API_BASE", "https://open-api.affiliate.shopee.com.br")
     if not (app_id and secret):
@@ -128,6 +169,8 @@ def _shopee_candidates(s: requests.Session, need: int, usados: set[str]) -> list
                 continue
             disc = 1 - lo / hi
             if disc < 0.05 or str(n["offerLink"]) in usados:
+                continue
+            if title_used(str(n.get("productName") or ""), used_titles):
                 continue
             scored.append((disc, lo, {
                 "marketplace": "shopee", "external_id": str(n.get("itemId")),
@@ -178,6 +221,8 @@ def _channel_candidates(s: requests.Session, need: int, usados: set[str]) -> lis
         if disc < 5 or links[0] in usados:
             continue
         title = next((l.strip() for l in text.splitlines() if len(l.strip()) > 12), "Oferta do canal")[:90]
+        if title_used(title, load_used_titles()):
+            continue
         market = "mercadolivre" if "mercadolivre" in links[0] or "meli." in links[0] else "shopee"
         if any(c["affiliate_url"] == links[0] for _, c in cands):
             continue
@@ -245,7 +290,8 @@ def main(argv: list[str]) -> int:
     for o in offers:
         o.update({"day": day, "price_label": _brl(o["price"]),
                   "original_label": _brl(o["original_price"])})
-    mark_usados([o["affiliate_url"] for o in offers])
+    mark_usados([o["affiliate_url"] for o in offers],
+                [o["title"] for o in offers])
     groups = {"v1": offers[0:3], "v2": offers[3:6], "v3": offers[6:9]}
     groups = {k: v for k, v in groups.items() if len(v) == 3}
     if not groups:
