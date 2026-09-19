@@ -270,8 +270,13 @@ def assemble(scenes: list[dict], out: Path, workdir: Path) -> Path:
                "-vf", kb,
                "-c:v", "libx264", "-preset", "superfast", "-crf", "23", str(clip))
         clip_paths.append(clip)
-        png = workdir / f"cap{i}.png"
-        caption_png(sc.get("caption") or "» @cacaofertasofcbr", png)
+        if sc.get("caption"):
+            png = workdir / f"cap{i}.png"
+            caption_png(sc["caption"], png)
+            sc["_cap_in"] = len([s for s in scenes[:i + 1] if s.get("caption")])  # 1-based
+        else:
+            sc["_cap_in"] = 0
+    ncap = len([s for s in scenes if s.get("caption")])
     # 2) concat sem re-encode
     lst = workdir / "concat.txt"
     lst.write_text("".join(f"file '{c}'\n" for c in clip_paths))
@@ -279,18 +284,22 @@ def assemble(scenes: list[dict], out: Path, workdir: Path) -> Path:
     ff("-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(vcat))
     # 3) legendas + áudio (único encode final)
     cap_inputs = []
-    for i in range(n):
-        cap_inputs += ["-i", str(workdir / f"cap{i}.png")]
+    for i, sc in enumerate(scenes):
+        if sc.get("caption"):
+            cap_inputs += ["-i", str(workdir / f"cap{i}.png")]
     audios = []
     for sc in scenes:
         audios += ["-i", str(sc["mp3"])]
-    vparts, t0 = [], 0.0
-    for i in range(n):
-        pos = f"overlay=(720-w)/2:1280-h-200:enable='between(t,{t0:.2f},{t0 + durs[i]:.2f})'"
-        prev = "[0:v]" if i == 0 else f"[v{i - 1}]"
-        vparts.append(f"[{1 + i}:v]format=rgba,scale=600:-1[cap{i}];{prev}[cap{i}]{pos}[v{i}]")
+    vparts, t0, vprev = [], 0.0, "[0:v]"
+    for i, sc in enumerate(scenes):
+        if sc.get("caption"):
+            pos = f"overlay=(720-w)/2:1280-h-200:enable='between(t,{t0:.2f},{t0 + durs[i]:.2f})'"
+            vparts.append(f"[{sc['_cap_in']}:v]format=rgba,scale=600:-1[cap{i}];"
+                          f"{vprev}[cap{i}]{pos}[v{i}]")
+            vprev = f"[v{i}]"
         t0 += durs[i]
-    base = 1 + n
+    vlast = vprev if vprev != "[0:v]" else "[0:v]"
+    base = 1 + ncap
     t0 = 0.0
     aparts = []
     for i in range(n):
@@ -299,7 +308,7 @@ def assemble(scenes: list[dict], out: Path, workdir: Path) -> Path:
         t0 += durs[i]
     afilter = ";".join(aparts) + ";" + "".join(f"[a{i}]" for i in range(n)) + f"amix=inputs={n}:normalize=0[aout]"
     cmd = ["-i", str(vcat), *cap_inputs, *audios,
-           "-filter_complex", ";".join(vparts) + f";[v{n - 1}]null[vcat];{afilter}",
+           "-filter_complex", ";".join(vparts) + f";{vlast}null[vcat];{afilter}",
            "-map", "[vcat]", "-map", "[aout]", "-threads", "8",
            "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
            "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",

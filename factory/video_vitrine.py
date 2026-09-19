@@ -65,16 +65,16 @@ def photo_shadow(base: Image.Image, photo: Path, cx_top: tuple[int, int], w: int
     return y + h
 
 
-def card_scene(offer: dict, seed: int) -> tuple[Image.Image, str, str]:
+def card_scene(offer: dict, seed: int) -> tuple[Image.Image, str, str | None]:
     name = short_name(offer["title"])
     bg = base_scene(seed)
     y = spaced_kicker(bg, R.W // 2, 300, name)
     y = price_pill(bg, R.W // 2, y + 30, offer["price_label"])
     photo = Path(offer["photos_local"][0])
-    photo_shadow(bg, photo, ((R.W - 860) // 2, y + 40), 860, 500)
+    photo_shadow(bg, photo, ((R.W - 860) // 2, y + 40), 860, 820)
     handle_footer(bg)
     nar = f"{name}, {offer['price_label']}, link no canal!"
-    return bg, nar, offer["price_label"]
+    return bg, nar, None  # sem legenda queimada: preço/nome já estão no card
 
 
 def cover_scene(seed: int) -> tuple[Image.Image, str, str]:
