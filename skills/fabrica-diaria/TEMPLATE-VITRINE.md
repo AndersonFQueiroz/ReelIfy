@@ -30,6 +30,8 @@ Padrão oficial dos 3 vídeos/dia. Mudar só: produtos, fotos, narração, preç
 ## 1º comentário padrão (travado)
 👇 CANAL GRÁTIS + 3 links + "💬 Comenta 1, 2 ou 3 — qual tu levaria?"
 (engajamento sem promessa de resposta; zero trabalho manual.)
+Entrega: texto no pack p/ colar na mão (TT/Kwai/IG). `firstComment` do Buffer
+é pago → fora; links vão na legenda.
 ## CTA por rede (travado)
 - YT: comenta 1/2/3 + link na bio do canal (Shorts nunca tem link clicável; YT sem PV)
 - IG: me chama no direct (lá o link clica)
