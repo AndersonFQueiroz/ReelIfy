@@ -28,15 +28,18 @@ def main(argv: list[str]) -> int:
     if oferta_do_dia.main([day]) != 0:
         return 1
     day_dir = C.FACTORY_DATA / day
-    groups = json.loads((day_dir / "offers_day.json").read_text(encoding="utf-8"))["groups"]
+    data = json.loads((day_dir / "offers_day.json").read_text(encoding="utf-8"))
+    groups = data["groups"]
+    edition = int(data.get("edition") or 1)
     seed_base = _dt.date.fromisoformat(day).toordinal() % 50
 
     videos = {}
     for key in ("v1", "v2", "v3"):
         if key not in groups:
             continue
-        log(f"{LABELS[key]}: " + " | ".join(o["title"][:28] for o in groups[key]))
-        videos[key] = video_vitrine.build(groups[key], day_dir, key, seed_base + 10 * int(key[1]))
+        log(f"{LABELS[key]} (#{edition}): " + " | ".join(o["title"][:28] for o in groups[key]))
+        videos[key] = video_vitrine.build(groups[key], day_dir, key,
+                                          seed_base + 10 * int(key[1]), day, edition)
         log(f"{key} pronto: {videos[key].name}")
     if not videos:
         return 1

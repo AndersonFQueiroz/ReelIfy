@@ -77,14 +77,31 @@ def card_scene(offer: dict, seed: int) -> tuple[Image.Image, str, str | None]:
     return bg, nar, None  # sem legenda queimada: preço/nome já estão no card
 
 
-def cover_scene(seed: int) -> tuple[Image.Image, str, str]:
+WEEKDAYS = ["SEGUNDA-FEIRA", "TERÇA-FEIRA", "QUARTA-FEIRA", "QUINTA-FEIRA",
+            "SEXTA-FEIRA", "SÁBADO", "DOMINGO"]
+MONTHS = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO",
+          "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
+PART = {"v1": 1, "v2": 2, "v3": 3}
+
+
+def cover_scene(seed: int, key: str = "v1", day: str = "2026-09-19",
+                edition: int = 1) -> tuple[Image.Image, str, str]:
+    import datetime as _dt
+    d = _dt.date.fromisoformat(day)
+    wd = WEEKDAYS[d.weekday()]
+    dateline = f"{wd} • {d.day} DE {MONTHS[d.month - 1]}"
     bg = base_scene(seed)
-    y = R.draw_display(bg, R.W // 2, 420, "ACHADINHOS", 104)
+    y = R.kicker(bg, R.W // 2, 330, f"EDIÇÃO #{edition}")
+    y = R.draw_display(bg, R.W // 2, y + 30, "ACHADINHOS", 104)
     y = R.draw_display(bg, R.W // 2, y + 10, "DO DIA", 104, accent="DIA")
-    y = R.draw_center_text(bg, R.W // 2, y + 40, "3 ofertas verificadas", 50)
-    R.paste_logo(bg, R.W // 2, 1180, 520)
+    y = R.draw_center_text(bg, R.W // 2, y + 30, f"PARTE {PART.get(key, 1)} DE 3", 48,
+                           fill=R.WHITE, bold=True)
+    y = R.draw_center_text(bg, R.W // 2, y + 8, dateline, 40)
+    R.paste_logo(bg, R.W // 2, 1200, 480)
     handle_footer(bg)
-    return bg, "Achadinhos do dia no Caça Ofertas! Três ofertas verificadas!", "ACHADINHOS DO DIA"
+    nar = (f"Achadinhos desta {wd.lower()}, parte {PART.get(key, 1)}! "
+           f"Três ofertas verificadas!")
+    return bg, nar, "ACHADINHOS DO DIA"
 
 
 def final_scene(seed: int) -> tuple[Image.Image, str, str]:
@@ -101,9 +118,10 @@ def final_scene(seed: int) -> tuple[Image.Image, str, str]:
     return bg, "Aponta a câmera pro código e entra no canal. É de graça! Te espero lá.", "ENTRA NO CANAL »"
 
 
-def build(offers: list[dict], outdir: Path, key: str, seed_base: int) -> Path:
+def build(offers: list[dict], outdir: Path, key: str, seed_base: int,
+          day: str = "2026-09-19", edition: int = 1) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
-    parts = [cover_scene(seed_base)] + \
+    parts = [cover_scene(seed_base, key, day, edition)] + \
             [card_scene(o, seed_base + 1 + i) for i, o in enumerate(offers)] + \
             [final_scene(seed_base + 5)]
     scenes = []

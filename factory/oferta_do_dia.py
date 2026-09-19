@@ -36,6 +36,26 @@ def _usados_path() -> Path:
     return C.FACTORY_DATA / "usados.json"
 
 
+def next_edition() -> int:
+    """Incrementa só quando gera ofertas novas (rebuild do mesmo dia não conta)."""
+    p = C.FACTORY_DATA / "edicao.json"
+    try:
+        n = int(json.loads(p.read_text(encoding="utf-8")).get("n", 0))
+    except Exception:
+        n = 0
+    # 19/09 (primeira vitrine) conta como #1
+    n = n + 1
+    p.write_text(json.dumps({"n": n}), encoding="utf-8")
+    return n
+
+
+def current_edition() -> int:
+    try:
+        return int(json.loads((C.FACTORY_DATA / "edicao.json").read_text(encoding="utf-8")).get("n", 1))
+    except Exception:
+        return 1
+
+
 def load_usados() -> set[str]:
     try:
         return set(json.loads(_usados_path().read_text(encoding="utf-8")))
@@ -229,7 +249,8 @@ def main(argv: list[str]) -> int:
         print("FALHA: sem trio completo.", file=sys.stderr)
         return 1
     (outdir / "offers_day.json").write_text(
-        json.dumps({"day": day, "origem": origem, "groups": groups}, ensure_ascii=False, indent=1),
+        json.dumps({"day": day, "origem": origem, "edition": next_edition(),
+                    "groups": groups}, ensure_ascii=False, indent=1),
         encoding="utf-8")
     for k, v in groups.items():
         print(f"{k}: " + " | ".join(f"{o['title'][:30]} -{o['discount_pct']}%" for o in v))

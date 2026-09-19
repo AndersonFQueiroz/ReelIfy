@@ -17,8 +17,8 @@ TAGS_MKT = {"mercadolivre": ["mercadolivre", "achadinhosml"],
             "shopee": ["shopee", "achadinhosshopee"]}
 
 
-def caption_for(offers: list[dict]) -> tuple[str, str]:
-    lines = ["🔥 ACHADINHOS DO DIA"]
+def caption_for(offers: list[dict], edition: int = 1) -> tuple[str, str]:
+    lines = [f"🔥 ACHADINHOS DO DIA (#{edition})"]
     for i, o in enumerate(offers, 1):
         lines.append(f"{i}⃣ {short_name(o['title'])} — {o['price_label']} (-{o['discount_pct']}%)\n👉 {o['affiliate_url']}")
     tags = set(TAGS_BASE)
@@ -40,11 +40,12 @@ def build_pack(day_dir: Path, videos: dict[str, Path]) -> Path:
         print("FALHA DURA: links duplicados ou inválidos.", file=sys.stderr)
         raise SystemExit(2)
     captions, firsts, covers, titles = {}, {}, {}, {}
+    edition = int(data.get("edition") or 1)
     for key in videos:
-        cap, first = caption_for(groups[key])
+        cap, first = caption_for(groups[key], edition)
         captions[key], firsts[key] = cap, first
-        titles[key] = "🔥 " + " · ".join(
-            f"{short_name(o['title'])[:30]} {o['price_label']}" for o in groups[key])[:95]
+        titles[key] = (f"(#{edition}) " + " · ".join(
+            f"{short_name(o['title'])[:30]} {o['price_label']}" for o in groups[key]))[:95]
         cand = day_dir / f"{key}s1.png"
         src = cand if cand.exists() else None
         if src and src.exists():

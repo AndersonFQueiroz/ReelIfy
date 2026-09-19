@@ -3,8 +3,10 @@
 Padrão oficial dos 3 vídeos/dia. Mudar só: produtos, fotos, narração, preços.
 
 ## Estrutura (5 cenas, ~30s, 720×1280, H264+AAC)
-1. **Capa:** "ACHADINHOS DO DIA" (Archivo Black itálico, DIA cyan) + "3 ofertas
-   verificadas" + **logo centralizada 520px** + handle.
+1. **Capa:** pílula cyan `EDIÇÃO #N` + "ACHADINHOS DO DIA" + `PARTE X DE 3` +
+   data por extenso (`SEXTA-FEIRA • 19 DE SETEMBRO`) + **logo 480px** + handle.
+   Narração fala dia e parte. Edição incrementa só em ofertas novas
+   (`edicao.json`; 19/09 = #1).
 2. **3 cards produto:**
    - Nome em caps espaçadas (Poppins SemiBold, encolhe até caber 920px)
    - Pílula creme `#FAF3E4`: preço Archivo Black 72 marinho + "LINK NO CANAL"
